@@ -3,6 +3,9 @@ from tkinter import ttk, messagebox
 
 
 class TradeUpCalculatorApp:
+    RESULT_DECIMALS = 12
+    NORMALIZED_DECIMALS = 10
+
     def __init__(self, root: tk.Tk):
         self.root = root
         self.root.title("CS2 合成磨损计算器（5/10件）")
@@ -153,20 +156,22 @@ class TradeUpCalculatorApp:
                     )
                 if not (in_min <= f <= in_max):
                     raise ValueError(
-                        f"第{i + 1}件磨损 {f:.6f} 不在该皮肤范围 [{in_min:.6f}, {in_max:.6f}] 内"
+                        f"第{i + 1}件磨损 {f:.10f} 不在该皮肤范围 [{in_min:.10f}, {in_max:.10f}] 内"
                     )
 
                 normalized = (f - in_min) / (in_max - in_min)
                 normalized_values.append(normalized)
-                detail_lines.append(f"#{i + 1}: {normalized:.6f}")
+                detail_lines.append(
+                    f"#{i + 1}: {normalized:.{self.NORMALIZED_DECIMALS}f}"
+                )
 
             avg_normalized = sum(normalized_values) / len(normalized_values)
             output_float = output_min + avg_normalized * (output_max - output_min)
 
             quality = self._float_to_wear(output_float)
             result_text = (
-                f"平均归一化输入磨损: {avg_normalized:.8f}\n"
-                f"预测输出磨损: {output_float:.8f}\n"
+                f"平均归一化输入磨损: {avg_normalized:.{self.RESULT_DECIMALS}f}\n"
+                f"预测输出磨损: {output_float:.{self.RESULT_DECIMALS}f}\n"
                 f"对应品级: {quality}\n"
                 f"\n每件归一化值:\n" + "\n".join(detail_lines)
             )
@@ -175,7 +180,7 @@ class TradeUpCalculatorApp:
             for i, n in enumerate(normalized_values):
                 label = self.table_frame.grid_slaves(row=i + 1, column=4)
                 if label:
-                    label[0].configure(text=f"{n:.6f}")
+                    label[0].configure(text=f"{n:.{self.NORMALIZED_DECIMALS}f}")
 
         except ValueError as err:
             messagebox.showerror("输入错误", str(err))
