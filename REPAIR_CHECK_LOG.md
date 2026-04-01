@@ -203,3 +203,27 @@
 ### 结果
 - 即使反向代理头不完整，只要用户从公网页面点击登录，OpenID 参数也会优先采用公网 origin。
 - 可继续压缩“授权页显示 localhost / 回调落 localhost”的残余故障概率。
+
+---
+
+## 2026-04-01（再补强：代理头异常时仍回落 localhost）
+
+### 问题现象
+- 部分面板反代场景下，`Host/X-Forwarded-Host` 会被改写成 `localhost:5173`。
+- 即使前端从公网域名访问，Steam 授权页仍显示“登录到 localhost”，回调也落到 `http://localhost:5173/api/auth/steam/return`。
+
+### 本轮修复
+1. **新增 `PUBLIC_BASE_URL` 后端兜底配置**
+   - 在 `resolveClientOrigin()` 中加入固定公网地址优先级（低于显式 query/session，高于代理头）。
+   - 当反代头不可信时，仍能稳定生成公网 `realm/returnURL`。
+
+2. **新增 session 级来源预热中间件**
+   - 在通用中间件中从 `Origin/Referer` 预写入 `req.session.steamClientOrigin`（仅公网地址）。
+   - 减少“首次登录请求缺少 query origin”导致的 localhost 回落。
+
+3. **文档更新**
+   - README 的 OpenID 常见问题新增 `PUBLIC_BASE_URL` 配置说明与示例。
+
+### 结果
+- 在“反代头偶发被改写为 localhost”的环境下，服务端仍可优先使用公网地址构建 Steam OpenID 回调参数。
+- 进一步降低“授权页显示 localhost / 回调落 localhost”残余概率。

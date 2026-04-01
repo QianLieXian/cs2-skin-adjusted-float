@@ -193,7 +193,8 @@ const {
   STEAM_RETURN_URL = `${BASE_URL}/api/auth/steam/return`,
   STEAM_OPENID_PROVIDER = 'https://steamcommunity.com/openid',
   STEAM_WEB_API = 'https://api.steampowered.com',
-  CSFLOAT_INSPECT_API = 'https://api.csfloat.com'
+  CSFLOAT_INSPECT_API = 'https://api.csfloat.com',
+  PUBLIC_BASE_URL = ''
 } = process.env;
 const hasExplicitBaseUrl = Boolean(String(process.env.BASE_URL ?? '').trim());
 const enforceCanonicalHost =
@@ -349,6 +350,15 @@ app.use(passport.initialize());
 app.use(passport.session());
 app.use(express.json());
 
+app.use((req, _res, next) => {
+  if (req.session?.steamClientOrigin) return next();
+  const candidate = getHeaderBaseUrl(req.headers.origin) || getHeaderBaseUrl(req.headers.referer);
+  if (candidate && !isLocalBaseUrl(candidate)) {
+    req.session.steamClientOrigin = candidate;
+  }
+  next();
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 function isLocalHost(host) {
@@ -392,6 +402,11 @@ function resolveClientOrigin(req) {
   if (explicitOrigin && !isLocalBaseUrl(explicitOrigin)) return explicitOrigin;
   if (req.session?.steamClientOrigin && !isLocalBaseUrl(req.session.steamClientOrigin)) {
     return req.session.steamClientOrigin;
+  }
+
+  const configuredPublicBaseUrl = getHeaderBaseUrl(PUBLIC_BASE_URL);
+  if (configuredPublicBaseUrl && !isLocalBaseUrl(configuredPublicBaseUrl)) {
+    return configuredPublicBaseUrl;
   }
 
   const forwardedBaseUrl = parseForwardedHeader(req.headers.forwarded);
