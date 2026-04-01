@@ -36,8 +36,11 @@ const COLLECTION_ZH = {
 };
 
 const RARITY_ZH = {
+  'Consumer Grade': '消费级',
   Consumer: '消费级',
+  'Industrial Grade': '工业级',
   Industrial: '工业级',
+  'Mil-Spec Grade': '军规级',
   MilSpec: '军规级',
   Restricted: '受限',
   Classified: '保密',
@@ -45,12 +48,62 @@ const RARITY_ZH = {
 };
 
 const RARITY_CLASS = {
+  'Consumer Grade': 'rarity-consumer',
   Consumer: 'rarity-consumer',
+  'Industrial Grade': 'rarity-industrial',
   Industrial: 'rarity-industrial',
+  'Mil-Spec Grade': 'rarity-milspec',
   MilSpec: 'rarity-milspec',
   Restricted: 'rarity-restricted',
   Classified: 'rarity-classified',
   Covert: 'rarity-covert'
+};
+
+const RARITY_ORDER = [
+  'Consumer Grade',
+  'Industrial Grade',
+  'Mil-Spec Grade',
+  'Restricted',
+  'Classified',
+  'Covert'
+];
+
+const WEAPON_ZH = {
+  'AK-47': 'AK-47',
+  AUG: 'AUG',
+  AWP: 'AWP',
+  'CZ75-Auto': 'CZ75 自动手枪',
+  'Desert Eagle': '沙漠之鹰',
+  'Dual Berettas': '双持贝瑞塔',
+  FAMAS: '法玛斯',
+  'Five-SeveN': 'FN57',
+  G3SG1: 'G3SG1',
+  'Galil AR': '加利尔 AR',
+  'Glock-18': '格洛克 18 型',
+  M249: 'M249',
+  'M4A1-S': 'M4A1 消音型',
+  M4A4: 'M4A4',
+  'MAC-10': 'MAC-10',
+  'MAG-7': 'MAG-7',
+  'MP5-SD': 'MP5-SD',
+  MP7: 'MP7',
+  MP9: 'MP9',
+  Negev: '内格夫',
+  Nova: '新星',
+  P2000: 'P2000',
+  P250: 'P250',
+  P90: 'P90',
+  'PP-Bizon': 'PP-野牛',
+  'R8 Revolver': 'R8 左轮手枪',
+  'SCAR-20': 'SCAR-20',
+  'SG 553': 'SG 553',
+  'SSG 08': 'SSG 08',
+  'Sawed-Off': '截短霰弹枪',
+  'Tec-9': 'Tec-9',
+  'UMP-45': 'UMP-45',
+  'USP-S': 'USP 消音版',
+  XM1014: 'XM1014',
+  'Zeus x27': '宙斯 x27'
 };
 
 const fmt16 = (n) => Number(n).toFixed(16);
@@ -71,10 +124,16 @@ function normalizeInputFloat(item, skinRangeMap) {
   return Math.max(0, Math.min(1, normalized));
 }
 
+function localizeSkinName(rawName = '') {
+  const [weapon, finish] = rawName.split(' | ');
+  const zhWeapon = WEAPON_ZH[weapon] ?? weapon;
+  return finish ? `${zhWeapon} | ${finish}` : zhWeapon;
+}
+
 function makeBreadcrumb(skin) {
   const collection = COLLECTION_ZH[skin.collections?.[0]] ?? skin.collections?.[0] ?? '未知收藏';
   const rarity = RARITY_ZH[skin.rarity] ?? skin.rarity;
-  return `${collection} / ${rarity} / ${skin.name}`;
+  return `${collection} / ${rarity} / ${localizeSkinName(skin.name)}`;
 }
 
 function buildSelectors() {
@@ -87,7 +146,14 @@ function buildSelectors() {
 
 function refreshRarityOptions() {
   const c = ui.collectionSelect.value;
-  const rarities = [...new Set(skinData.skins.filter((s) => (s.collections || []).includes(c)).map((s) => s.rarity))];
+  const rarities = [...new Set(skinData.skins.filter((s) => (s.collections || []).includes(c)).map((s) => s.rarity))]
+    .sort((a, b) => {
+      const ai = RARITY_ORDER.indexOf(a);
+      const bi = RARITY_ORDER.indexOf(b);
+      const av = ai === -1 ? Number.MAX_SAFE_INTEGER : ai;
+      const bv = bi === -1 ? Number.MAX_SAFE_INTEGER : bi;
+      return av - bv || a.localeCompare(b);
+    });
   ui.raritySelect.innerHTML = rarities
     .map((r) => `<option value="${r}">${RARITY_ZH[r] ?? r}</option>`)
     .join('');
@@ -99,7 +165,7 @@ function refreshSkinOptions() {
   const r = ui.raritySelect.value;
   const skins = skinData.skins.filter((s) => (s.collections || []).includes(c) && s.rarity === r);
   ui.skinSelect.innerHTML = skins
-    .map((s) => `<option value="${s.id}">${s.name}</option>`)
+    .map((s) => `<option value="${s.id}">${localizeSkinName(s.name)}</option>`)
     .join('');
   refreshSelectedHint();
 }
@@ -226,7 +292,7 @@ function renderResult(rows, targetFloat, outputSkin, recipeCount) {
     const exact = row.delta <= 1e-12;
     const itemList = row.items.map((it) => {
       const skin = skinsByName.get((it.marketHashName || '').toLowerCase());
-      const breadcrumb = skin ? makeBreadcrumb(skin) : `未知收藏 / 未知品质 / ${it.marketHashName || '未知饰品'}`;
+      const breadcrumb = skin ? makeBreadcrumb(skin) : `未知收藏 / 未知品质 / ${localizeSkinName(it.marketHashName || '未知饰品')}`;
       const rarityClass = skin ? (RARITY_CLASS[skin.rarity] ?? '') : '';
       return `<li class="${rarityClass}">${breadcrumb}（float: ${fmt16(it.floatValue)}，归一化: ${fmt16(it.normalized)}）</li>`;
     }).join('');
@@ -300,7 +366,7 @@ function renderInventoryMeta(meta) {
   const listHtml = inventoryItems.slice(0, 40).map((it) => {
     const skin = skinsByName.get((it.marketHashName || '').toLowerCase());
     const rarityClass = skin ? (RARITY_CLASS[skin.rarity] ?? '') : '';
-    const breadcrumb = skin ? makeBreadcrumb(skin) : `未知收藏 / 未知品质 / ${it.marketHashName || '未知饰品'}`;
+    const breadcrumb = skin ? makeBreadcrumb(skin) : `未知收藏 / 未知品质 / ${localizeSkinName(it.marketHashName || '未知饰品')}`;
     return `
       <div class="inv-row ${it.cooldown ? 'cooldown' : ''}">
         <div>${it.cooldown ? '⏳' : '✅'}</div>
