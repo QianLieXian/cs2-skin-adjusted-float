@@ -261,6 +261,33 @@
 
 ---
 
+## 2026-04-01（再次补强：`Failed to verify assertion` 仍偶发）
+
+### 问题现象
+- 日志显示 `expectedReturnURL` / `openid.return_to` / `expectedRealm` 已一致，但回调仍报：
+  - `InternalOpenIDError: Failed to verify assertion`
+- 说明问题不再只是“回调地址不一致”，还可能与 OpenID 关联态校验（association state）有关。
+
+### 本轮修复
+1. **新增双策略：有状态优先 + 无状态兜底**
+   - 保留原有 `steam`（`stateless: false`）作为首选。
+   - 新增 `steam-stateless`（`stateless: true`）作为校验失败时兜底。
+
+2. **回调失败重试路径升级**
+   - 当首次回调出现 `Failed to verify assertion` 时：
+     - 仍先按 `openid.return_to` 重建 `realm/returnURL`；
+     - 但重试时切换到 `steam-stateless`，绕过关联态不一致导致的失败路径。
+
+3. **策略运行时参数保持一致**
+   - `applySteamAuthOptionsToStrategy()` 改为同时更新 `steam` 与 `steam-stateless` 的 `returnUrl/realm`。
+   - OpenID provider 自动切换（`/openid` ↔ `/openid/login`）也同步作用于两个策略，避免主/备策略配置漂移。
+
+### 结果
+- 将“地址已一致但仍 assertion 失败”的场景纳入可恢复路径。
+- 优先保证正常有状态流程；仅在必要时自动降级到无状态校验，提高复杂反代/网络环境下的登录成功率。
+
+---
+
 ## 2026-04-01（最终定位：`passport-steam` 忽略动态 `realm/returnURL`）
 
 ### 问题现象

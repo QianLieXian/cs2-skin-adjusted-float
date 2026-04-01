@@ -293,23 +293,28 @@ async function getWithDirectFallback(url, config = {}) {
 passport.serializeUser((user, done) => done(null, user));
 passport.deserializeUser((obj, done) => done(null, obj));
 
-passport.use(
-  new SteamStrategy(
+function verifySteamProfile(_identifier, profile, done) {
+  return done(null, {
+    steamId: profile.id,
+    personaName: profile.displayName
+  });
+}
+
+function createSteamStrategy({ stateless = false } = {}) {
+  return new SteamStrategy(
     {
       returnURL: STEAM_RETURN_URL || defaultSteamReturnUrl,
       realm: STEAM_REALM || defaultSteamRealm,
       apiKey: STEAM_API_KEY,
       providerURL: normalizeOpenIdProvider(STEAM_OPENID_PROVIDER),
-      stateless: false
+      stateless
     },
-    (_identifier, profile, done) => {
-      return done(null, {
-        steamId: profile.id,
-        personaName: profile.displayName
-      });
-    }
-  )
-);
+    verifySteamProfile
+  );
+}
+
+passport.use('steam', createSteamStrategy({ stateless: false }));
+passport.use('steam-stateless', createSteamStrategy({ stateless: true }));
 
 const openIdProviderCandidates = getOpenIdProviderCandidates(STEAM_OPENID_PROVIDER);
 let currentProviderCandidateIndex = 0;
@@ -325,29 +330,35 @@ function trySwitchOpenIdProvider(error) {
   if (!isDiscoverError || nextIndex >= openIdProviderCandidates.length) return false;
   currentProviderCandidateIndex = nextIndex;
   const nextProvider = openIdProviderCandidates[currentProviderCandidateIndex];
-  const steamStrategy = passport._strategy?.('steam');
-  if (steamStrategy) steamStrategy._providerURL = nextProvider;
+  const strategyNames = ['steam', 'steam-stateless'];
+  for (const strategyName of strategyNames) {
+    const steamStrategy = passport._strategy?.(strategyName);
+    if (steamStrategy) steamStrategy._providerURL = nextProvider;
+  }
   console.warn(`[WARN] OpenID provider discover failed, switching to fallback provider: ${nextProvider}`);
   return true;
 }
 
 function applySteamAuthOptionsToStrategy(authOptions = {}) {
-  const steamStrategy = passport._strategy?.('steam');
-  if (!steamStrategy) return;
+  const strategyNames = ['steam', 'steam-stateless'];
+  const steamStrategies = strategyNames.map((name) => passport._strategy?.(name)).filter(Boolean);
+  if (steamStrategies.length === 0) return;
   const nextReturnURL = String(authOptions.returnURL ?? '').trim();
   const nextRealm = String(authOptions.realm ?? '').trim();
 
-  if (nextReturnURL && steamStrategy._relyingParty) {
-    steamStrategy._relyingParty.returnUrl = nextReturnURL;
-  }
-  if (nextRealm && steamStrategy._relyingParty) {
-    steamStrategy._relyingParty.realm = nextRealm;
+  for (const steamStrategy of steamStrategies) {
+    if (nextReturnURL && steamStrategy._relyingParty) {
+      steamStrategy._relyingParty.returnUrl = nextReturnURL;
+    }
+    if (nextRealm && steamStrategy._relyingParty) {
+      steamStrategy._relyingParty.realm = nextRealm;
+    }
   }
 }
 
-function authenticateSteam(req, res, next, authOptions, callback) {
+function authenticateSteam(req, res, next, authOptions, callback, strategyName = 'steam') {
   applySteamAuthOptionsToStrategy(authOptions);
-  const run = () => passport.authenticate('steam', authOptions, callback)(req, res, next);
+  const run = () => passport.authenticate(strategyName, authOptions, callback)(req, res, next);
   run();
 }
 
@@ -632,7 +643,7 @@ app.get('/api/auth/steam/return', (req, res, next) => {
         const retryAuthOptions = buildSteamAuthOptionsFromOpenIdReturnTo(req, authOptions);
         if (retryAuthOptions) {
           req.__steamRetriedWithOpenIdReturnTo = true;
-          console.warn('[WARN] Steam OpenID callback verify assertion failed, retry with openid.return_to', {
+          console.warn('[WARN] Steam OpenID callback verify assertion failed, retry with openid.return_to + stateless strategy', {
             previousReturnURL: authOptions.returnURL,
             retryReturnURL: retryAuthOptions.returnURL,
             previousRealm: authOptions.realm,
@@ -678,7 +689,7 @@ app.get('/api/auth/steam/return', (req, res, next) => {
               expectedRealm: retryAuthOptions.realm,
               openidReturnTo: req.query['openid.return_to'] ?? null
             });
-          });
+          }, 'steam-stateless');
         }
       }
       if (trySwitchOpenIdProvider(error)) {

@@ -38,6 +38,7 @@ npm run start
 3. 固定 `BASE_URL`（或显式设置 `STEAM_REALM` 与 `STEAM_RETURN_URL`），避免登录发起与回调阶段使用了不同 Host。
 4. 反向代理场景请正确透传 `X-Forwarded-Proto` 与 `X-Forwarded-Host`。
 5. 如果你的面板代理会把 Host 改写成 `localhost`，请在 `.env` 增加固定公网地址：`PUBLIC_BASE_URL=https://你的域名`。
+6. 当前版本已内置“回调失败自动无状态重试”（`steam-stateless`）。如果你日志中看到 `retry with openid.return_to + stateless strategy`，说明系统正在自动兜底处理该问题路径。
 
 示例：
 
