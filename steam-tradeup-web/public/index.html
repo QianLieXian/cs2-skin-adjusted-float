@@ -22,6 +22,11 @@
         <input id="tradeUrlInput" type="text" placeholder="https://steamcommunity.com/tradeoffer/new/?partner=...&token=..." />
         <button id="loadByTradeUrlBtn" class="secondary">通过交易链接读取库存</button>
       </div>
+      <div class="api-key-box">
+        <label for="steamApiKeyInput">可选：填写 Steam Web API Key（优先用于后端库存接口）</label>
+        <input id="steamApiKeyInput" type="password" placeholder="例如：XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX" autocomplete="off" />
+        <p class="muted small">不会提交到第三方，仅随本工具请求发送到你当前部署的后端。<a href="https://steamcommunity.com/dev/apikey" target="_blank" rel="noreferrer noopener">如何获取我的 API Key？</a></p>
+      </div>
       <pre id="authStatus">未登录</pre>
       <div id="inventoryMeta"></div>
     </section>
