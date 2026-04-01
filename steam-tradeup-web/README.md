@@ -24,6 +24,20 @@ npm run start
 
 ### `Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'express'`
 
+
+### `InternalOpenIDError: Failed to discover OP endpoint URL` / `connect ETIMEDOUT ...:443`
+
+通常是本地网络无法直连 Steam OpenID。现在支持固定 OpenID 端点与可选代理：
+
+1. 在 `.env` 中确认：
+   - `STEAM_OPENID_PROVIDER=https://steamcommunity.com/openid`
+2. 如果仍超时，配置代理（示例）：
+   - `STEAM_PROXY_URL=http://127.0.0.1:7890`
+3. 重启服务 `npm run start`。
+
+> 代理开启后，Steam 登录、OpenID 发现、公开库存读取都会走该代理。
+
+
 这是依赖未安装或安装不完整导致的。请在 `steam-tradeup-web` 目录执行：
 
 ```bash

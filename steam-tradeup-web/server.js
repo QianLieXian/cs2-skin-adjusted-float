@@ -1,13 +1,21 @@
+import dotenv from 'dotenv';
+
+dotenv.config();
+
+const { STEAM_PROXY_URL } = process.env;
+if (STEAM_PROXY_URL) {
+  process.env.GLOBAL_AGENT_HTTP_PROXY = STEAM_PROXY_URL;
+  await import('global-agent/bootstrap.js');
+  console.log('[INFO] Global proxy enabled for Steam/OpenID requests.');
+}
+
 import express from 'express';
 import session from 'express-session';
 import passport from 'passport';
 import { Strategy as SteamStrategy } from 'passport-steam';
-import dotenv from 'dotenv';
 import axios from 'axios';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-
-dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -19,6 +27,7 @@ const {
   STEAM_API_KEY,
   STEAM_REALM = `${BASE_URL}/`,
   STEAM_RETURN_URL = `${BASE_URL}/api/auth/steam/return`,
+  STEAM_OPENID_PROVIDER = 'https://steamcommunity.com/openid',
   STEAM_WEB_API = 'https://api.steampowered.com',
   CSFLOAT_INSPECT_API = 'https://api.csfloat.com'
 } = process.env;
@@ -26,6 +35,11 @@ const {
 if (!STEAM_API_KEY) {
   console.warn('[WARN] Missing STEAM_API_KEY. Steam login/inventory API will not work.');
 }
+
+const http = axios.create({
+  timeout: 25000,
+  proxy: false
+});
 
 passport.serializeUser((user, done) => done(null, user));
 passport.deserializeUser((obj, done) => done(null, obj));
@@ -35,7 +49,9 @@ passport.use(
     {
       returnURL: STEAM_RETURN_URL,
       realm: STEAM_REALM,
-      apiKey: STEAM_API_KEY
+      apiKey: STEAM_API_KEY,
+      providerURL: STEAM_OPENID_PROVIDER,
+      stateless: true
     },
     (_identifier, profile, done) => {
       return done(null, {
@@ -122,12 +138,11 @@ function normalizeInventory(items = []) {
 
 async function fetchInventory(steamId) {
   const url = `${STEAM_WEB_API}/IEconItems_730/GetPlayerItems/v1/`;
-  const { data } = await axios.get(url, {
+  const { data } = await http.get(url, {
     params: {
       key: STEAM_API_KEY,
       steamid: steamId
-    },
-    timeout: 20000
+    }
   });
   return data?.result?.items ?? [];
 }
@@ -170,12 +185,11 @@ async function fetchPublicInventoryByTradeUrl(tradeUrl) {
   }
 
   const invUrl = `https://steamcommunity.com/inventory/${parsed.steamId}/730/2`;
-  const { data } = await axios.get(invUrl, {
+  const { data } = await http.get(invUrl, {
     params: {
       l: 'english',
       count: 5000
-    },
-    timeout: 25000
+    }
   });
 
   const descriptions = new Map(
