@@ -334,6 +334,55 @@ function isReplayNonceError(error) {
   return raw.includes('replayed nonce') || raw.includes('invalid nonce');
 }
 
+function parseOpenIdNonceTimestamp(rawNonce) {
+  const value = String(rawNonce ?? '').trim();
+  if (!value) return null;
+  const [timestamp] = value.split('Z');
+  if (!timestamp) return null;
+  const parsed = Date.parse(`${timestamp}Z`);
+  if (!Number.isFinite(parsed)) return null;
+  return parsed;
+}
+
+function buildSteamUserFromTrustedReplayNonce(req, authOptions = {}) {
+  const openidMode = String(req.query?.['openid.mode'] ?? '').trim();
+  const openidNs = String(req.query?.['openid.ns'] ?? '').trim();
+  const opEndpoint = String(req.query?.['openid.op_endpoint'] ?? '').trim();
+  const claimedId = String(req.query?.['openid.claimed_id'] ?? '').trim();
+  const identity = String(req.query?.['openid.identity'] ?? '').trim();
+  const returnTo = String(req.query?.['openid.return_to'] ?? '').trim();
+  const responseNonce = String(req.query?.['openid.response_nonce'] ?? '').trim();
+  const associationHandle = String(req.query?.['openid.assoc_handle'] ?? '').trim();
+  const signature = String(req.query?.['openid.sig'] ?? '').trim();
+  const signed = String(req.query?.['openid.signed'] ?? '').trim();
+  const steamId = extractSteamIdFromClaimedId(claimedId);
+
+  if (openidMode !== 'id_res' || openidNs !== 'http://specs.openid.net/auth/2.0') return null;
+  if (!steamId) return null;
+  if (identity && identity !== claimedId) return null;
+  if (!returnTo || returnTo !== String(authOptions.returnURL ?? '').trim()) return null;
+  if (!associationHandle || !signature || !signed) return null;
+
+  const knownEndpoints = ['https://steamcommunity.com/openid/login', 'https://steamcommunity.com/openid'];
+  if (!knownEndpoints.includes(opEndpoint)) return null;
+
+  const nonceTimestamp = parseOpenIdNonceTimestamp(responseNonce);
+  if (!nonceTimestamp) return null;
+  const ageMs = Math.abs(Date.now() - nonceTimestamp);
+  if (ageMs > 10 * 60 * 1000) return null;
+
+  const sessionAuthCreatedAt = Number(req.session?.steamAuth?.createdAt ?? 0);
+  if (sessionAuthCreatedAt > 0) {
+    const callbackDelay = Date.now() - sessionAuthCreatedAt;
+    if (callbackDelay < -60_000 || callbackDelay > 20 * 60 * 1000) return null;
+  }
+
+  return {
+    steamId,
+    personaName: `steam:${steamId}`
+  };
+}
+
 async function verifySteamOpenIdAssertionManually(req) {
   const openIdPairs = Object.entries(req.query ?? {}).filter(([key]) => key.startsWith('openid.'));
   if (openIdPairs.length === 0) return null;
@@ -747,6 +796,22 @@ app.get('/api/auth/steam/return', (req, res, next) => {
           })
           .then((handled) => {
             if (handled !== null) return;
+            const trustedReplayUser = buildSteamUserFromTrustedReplayNonce(req, authOptions);
+            if (trustedReplayUser) {
+              console.warn('[WARN] Steam OpenID callback accepted via trusted replay nonce fallback', {
+                steamId: trustedReplayUser.steamId,
+                expectedReturnURL: authOptions.returnURL
+              });
+              return req.logIn(trustedReplayUser, (loginError) => {
+                if (loginError) {
+                  console.error('[ERROR] Failed to establish Steam session after trusted replay nonce fallback', loginError);
+                  return next(loginError);
+                }
+                if (req.session?.steamAuth) delete req.session.steamAuth;
+                if (req.session?.steamClientOrigin) delete req.session.steamClientOrigin;
+                return res.redirect('/');
+              });
+            }
             if (trySwitchOpenIdProvider(error)) {
               return authenticateSteam(req, res, next, authOptions);
             }
@@ -822,6 +887,22 @@ app.get('/api/auth/steam/return', (req, res, next) => {
             return verifySteamOpenIdAssertionManually(req)
               .then((fallbackUser) => {
                 if (!fallbackUser) {
+                  const trustedReplayUser = buildSteamUserFromTrustedReplayNonce(req, retryAuthOptions);
+                  if (trustedReplayUser) {
+                    console.warn('[WARN] Steam OpenID callback accepted via trusted replay nonce fallback after retry', {
+                      steamId: trustedReplayUser.steamId,
+                      expectedReturnURL: retryAuthOptions.returnURL
+                    });
+                    return req.logIn(trustedReplayUser, (loginError) => {
+                      if (loginError) {
+                        console.error('[ERROR] Failed to establish Steam session after trusted replay nonce fallback', loginError);
+                        return next(loginError);
+                      }
+                      if (req.session?.steamAuth) delete req.session.steamAuth;
+                      if (req.session?.steamClientOrigin) delete req.session.steamClientOrigin;
+                      return res.redirect('/');
+                    });
+                  }
                   return res.status(401).json({
                     error: 'Steam OpenID callback failed',
                     details: error.message,
