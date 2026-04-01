@@ -82,8 +82,9 @@ function resolveSteamProxyCandidates() {
   const fixedPorts = [STEAM_PROXY_PORT, MIXED_PROXY_PORT, CLASH_MIXED_PORT]
     .map((it) => String(it ?? '').trim())
     .filter(Boolean);
+  const fallbackMixedPort = fixedPorts.length === 0 ? '7898' : null;
 
-  for (const port of fixedPorts) {
+  for (const port of [...fixedPorts, ...(fallbackMixedPort ? [fallbackMixedPort] : [])]) {
     const host = String(STEAM_PROXY_HOST ?? '127.0.0.1').trim() || '127.0.0.1';
     pushFixedPortCandidate(`http://${host}:${port}`);
   }
@@ -162,7 +163,7 @@ if (proxyUrl) {
   process.env.CLASH_MIXED_PORT ||
   process.env.STEAM_USE_SYSTEM_PROXY === 'true'
 ) {
-  console.warn('[WARN] Proxy env is set but invalid. Expected formats like http://127.0.0.1:7897 or socks5://127.0.0.1:7890');
+  console.warn('[WARN] Proxy env is set but invalid. Expected formats like http://127.0.0.1:7898 or socks5://127.0.0.1:7898');
 }
 
 // 注意：不再清理用户的代理环境变量，避免破坏用户本机代理链路。
