@@ -17,8 +17,14 @@
         <button id="steamLoginBtn">Steam 登录（需后端）</button>
         <button id="loadDemoBtn" class="secondary">加载示例库存</button>
       </div>
+      <div class="trade-url-box">
+        <label for="tradeUrlInput">无需登录：输入你的交易链接（Trade Offer URL）读取公开库存</label>
+        <input id="tradeUrlInput" type="text" placeholder="https://steamcommunity.com/tradeoffer/new/?partner=...&token=..." />
+        <button id="loadByTradeUrlBtn" class="secondary">通过交易链接读取库存</button>
+      </div>
       <p class="tip">若未部署后端，可先用“示例库存”验证算法。部署后端后此页面可直接读取你的 Steam 库存。</p>
       <pre id="authStatus">未登录</pre>
+      <div id="inventoryMeta"></div>
     </section>
 
     <section class="card">

@@ -10,7 +10,17 @@ button { border: 0; border-radius: 8px; padding: 10px 14px; background: #4d6bff;
 button.secondary { background: #3a425e; }
 button + button { margin-left: 8px; }
 .row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.trade-url-box { margin: 12px 0; }
+.trade-url-box button { margin-top: 8px; }
 pre { background: #0f1528; padding: 10px; border-radius: 8px; white-space: pre-wrap; }
+.meta { margin-top: 10px; font-size: 14px; color: #ced7f9; }
+.meta strong.cooldown { color: #ffcc66; }
+.inv-list { margin-top: 10px; max-height: 240px; overflow: auto; border: 1px solid #313b56; border-radius: 8px; }
+.inv-row { display: grid; grid-template-columns: 22px 1fr; gap: 8px; padding: 8px 10px; border-bottom: 1px solid #2a3249; }
+.inv-row:last-child { border-bottom: none; }
+.inv-row.cooldown { background: rgba(255, 204, 102, 0.08); }
+.tag { display: inline-block; margin-left: 8px; padding: 2px 6px; border-radius: 999px; font-size: 12px; background: #353f62; }
+.tag.warn { background: #5e4722; color: #ffd999; }
 .table-wrap { overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; }
 th, td { border-bottom: 1px solid #313b56; padding: 8px; text-align: left; font-size: 14px; }
