@@ -190,6 +190,9 @@ const {
   STEAM_WEB_API = 'https://api.steampowered.com',
   CSFLOAT_INSPECT_API = 'https://api.csfloat.com'
 } = process.env;
+const hasExplicitBaseUrl = Boolean(String(process.env.BASE_URL ?? '').trim());
+const enforceCanonicalHost =
+  String(process.env.ENFORCE_CANONICAL_HOST ?? '').toLowerCase() === 'true' || hasExplicitBaseUrl;
 
 function normalizeOpenIdProvider(raw) {
   const value = String(raw ?? '').trim();
@@ -229,6 +232,10 @@ function normalizeBaseUrl(raw) {
 const normalizedBaseUrl = normalizeBaseUrl(BASE_URL);
 const defaultSteamRealm = `${normalizedBaseUrl}/`;
 const defaultSteamReturnUrl = `${normalizedBaseUrl}/api/auth/steam/return`;
+
+if (!enforceCanonicalHost) {
+  console.log('[INFO] Canonical host redirect disabled. Steam OpenID will use request host dynamically.');
+}
 
 if (!STEAM_API_KEY) {
   console.warn('[WARN] Missing STEAM_API_KEY. Steam login/inventory API will not work.');
@@ -324,6 +331,7 @@ function buildSteamAuthOptions(req, { persistForCallback = false } = {}) {
 
 const canonicalBaseUrl = new URL(normalizedBaseUrl);
 function getCanonicalRedirect(req) {
+  if (!enforceCanonicalHost) return null;
   const host = String(req.get('host') ?? '').trim();
   if (!host) return null;
   if (host === canonicalBaseUrl.host) return null;
