@@ -8,8 +8,8 @@
 </head>
 <body>
   <main class="container">
-    <h1>CS2 炼金磨损匹配器</h1>
-    <p class="muted">支持哈乐昆 / 攀升 / 寒带 / 热辐射 / 墨彩收藏品，自动使用饰品磨损上下限计算可达值。</p>
+    <h1>CS2 反向炼金磨损匹配器</h1>
+    <p class="muted">支持 9-16 位小数目标磨损，按库存反推可达/近似方案；饰品按稀有度着色并展示 收藏品 / 稀有度 / 饰品 书签路径。</p>
 
     <section class="card">
       <h2>1) Steam 库存授权与读取</h2>
@@ -22,17 +22,39 @@
         <input id="tradeUrlInput" type="text" placeholder="https://steamcommunity.com/tradeoffer/new/?partner=...&token=..." />
         <button id="loadByTradeUrlBtn" class="secondary">通过交易链接读取库存</button>
       </div>
-      <p class="tip">若未部署后端，可先用“示例库存”验证算法。部署后端后此页面可直接读取你的 Steam 库存。</p>
       <pre id="authStatus">未登录</pre>
       <div id="inventoryMeta"></div>
     </section>
 
     <section class="card">
-      <h2>2) 目标磨损输入</h2>
-      <label for="targetFloat">目标磨损（最多 16 位小数）</label>
-      <input id="targetFloat" type="text" placeholder="例如：0.1234567890123456" />
-      <button id="calculateBtn">计算最接近方案</button>
-      <p class="tip">炼金输出近似公式：输出磨损 = 输出皮肤最小磨损 + (输出皮肤最大磨损 - 最小磨损) * 10件材料平均磨损。</p>
+      <h2>2) 反向目标设置</h2>
+      <div class="grid-3">
+        <div>
+          <label for="collectionSelect">收藏品</label>
+          <select id="collectionSelect"></select>
+        </div>
+        <div>
+          <label for="raritySelect">稀有度</label>
+          <select id="raritySelect"></select>
+        </div>
+        <div>
+          <label for="skinSelect">饰品</label>
+          <select id="skinSelect"></select>
+        </div>
+      </div>
+      <label for="targetFloat">目标磨损（9-16 位小数）</label>
+      <input id="targetFloat" type="text" placeholder="例如：0.13989789148739" />
+      <div class="row">
+        <div>
+          <label for="recipeCount">配方件数</label>
+          <select id="recipeCount">
+            <option value="10" selected>10 件</option>
+            <option value="5">5 件</option>
+          </select>
+        </div>
+      </div>
+      <button id="calculateBtn">计算可达/近似方案</button>
+      <div id="selectedSkinHint" class="tip"></div>
     </section>
 
     <section class="card">
