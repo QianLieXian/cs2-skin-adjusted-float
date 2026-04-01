@@ -39,6 +39,7 @@ npm run start
 4. 反向代理场景请正确透传 `X-Forwarded-Proto` 与 `X-Forwarded-Host`。
 5. 如果你的面板代理会把 Host 改写成 `localhost`，请在 `.env` 增加固定公网地址：`PUBLIC_BASE_URL=https://你的域名`。
 6. 当前版本已内置“回调失败自动无状态重试”（`steam-stateless`）。如果你日志中看到 `retry with openid.return_to + stateless strategy`，说明系统正在自动兜底处理该问题路径。
+7. 若错误原因是 `Invalid or replayed nonce`，当前版本会优先触发 `check_authentication` 手动校验兜底（日志关键字：`manual nonce fallback`），不再先走一轮高概率无效的重复断言校验。
 
 示例：
 

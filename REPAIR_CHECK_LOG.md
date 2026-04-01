@@ -230,6 +230,42 @@
 
 ---
 
+## 2026-04-01（再次修复：`Invalid or replayed nonce` 反复失败）
+
+### 问题现象
+- 日志稳定出现：
+  - `Failed to verify assertion`
+  - `cause: Invalid or replayed nonce`
+- 且你的 `openid.return_to` / `expectedReturnURL` / `expectedRealm` 已经一致，说明不是简单的域名不匹配问题。
+
+### 根因补充
+1. **原流程在 nonce 失败时会先做一次 passport 重试**
+   - 首次失败后仍走一次 `steam-stateless` 再校验，属于“同一断言再次验证”路径。
+   - 在 `replayed nonce` 场景下，这一步通常不会改善，反而把故障重复触发一次。
+
+2. **手动兜底触发时机偏后**
+   - 旧代码只有“重试后仍失败”才进入 `check_authentication` 手动兜底，时机太晚、收益低。
+
+### 本轮修复
+1. **新增 nonce 错误识别**
+   - 新增 `isReplayNonceError(error)`，统一识别 `replayed nonce` / `invalid nonce`（含 message、cause、openidError）。
+
+2. **调整回调兜底顺序**
+   - 当首次回调识别到 nonce 类错误时，优先直接走 `check_authentication` 手动校验兜底。
+   - 仅手动兜底失败后，才继续进入后续 provider 切换/401 返回路径。
+
+3. **加强手动兜底安全校验**
+   - 手动校验新增以下约束，避免“无条件放行”：
+     - 仅接受 `openid.mode=id_res` 与 OpenID 2.0 命名空间；
+     - 仅接受 Steam OpenID 端点（`/openid` 或 `/openid/login`）；
+     - `openid.return_to` 必须与服务端期望回调地址一致。
+
+### 结果
+- 在你这类“参数一致但 nonce 被判重复”的高频场景中，系统会更早进入可成功的手动校验路径，减少无效二次失败。
+- 同时保留了 return_to 一致性校验，避免为了“能登上”而降低安全边界。
+
+---
+
 ## 2026-04-01（继续修复：多级反代 `X-Forwarded-Host` 顺序导致仍显示 localhost）
 
 ### 问题现象

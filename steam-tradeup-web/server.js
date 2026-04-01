@@ -322,6 +322,18 @@ function extractSteamIdFromClaimedId(claimedId) {
   return match?.[1] ?? null;
 }
 
+function isReplayNonceError(error) {
+  const raw = [
+    error?.message,
+    error?.openidError?.message,
+    error?.cause?.message
+  ]
+    .filter(Boolean)
+    .join(' | ')
+    .toLowerCase();
+  return raw.includes('replayed nonce') || raw.includes('invalid nonce');
+}
+
 async function verifySteamOpenIdAssertionManually(req) {
   const openIdPairs = Object.entries(req.query ?? {}).filter(([key]) => key.startsWith('openid.'));
   if (openIdPairs.length === 0) return null;
@@ -330,10 +342,23 @@ async function verifySteamOpenIdAssertionManually(req) {
   const openidNs = String(req.query?.['openid.ns'] ?? '').trim();
   const opEndpoint = String(req.query?.['openid.op_endpoint'] ?? '').trim();
   const claimedId = String(req.query?.['openid.claimed_id'] ?? '').trim();
+  const returnTo = String(req.query?.['openid.return_to'] ?? '').trim();
   const steamId = extractSteamIdFromClaimedId(claimedId);
-  const isKnownSteamEndpoint = opEndpoint === 'https://steamcommunity.com/openid/login';
+  const isKnownSteamEndpoint = [
+    'https://steamcommunity.com/openid/login',
+    'https://steamcommunity.com/openid'
+  ].includes(opEndpoint);
+  const expectedOptions = buildSteamAuthOptionsFromOpenIdReturnTo(req, buildSteamAuthOptions(req)) || buildSteamAuthOptions(req);
+  const expectedReturnUrl = String(expectedOptions.returnURL ?? '').trim();
 
-  if (openidMode !== 'id_res' || openidNs !== 'http://specs.openid.net/auth/2.0' || !steamId || !isKnownSteamEndpoint) {
+  if (
+    openidMode !== 'id_res' ||
+    openidNs !== 'http://specs.openid.net/auth/2.0' ||
+    !steamId ||
+    !isKnownSteamEndpoint ||
+    !returnTo ||
+    (expectedReturnUrl && returnTo !== expectedReturnUrl)
+  ) {
     return null;
   }
 
@@ -697,6 +722,56 @@ app.get('/api/auth/steam/return', (req, res, next) => {
 
   authenticateSteam(req, res, next, authOptions, (error, user) => {
     if (error) {
+      const shouldManualFallbackFirst = isReplayNonceError(error) && !req.__steamRetriedWithManualAssertion;
+      if (shouldManualFallbackFirst) {
+        req.__steamRetriedWithManualAssertion = true;
+        console.warn('[WARN] Steam OpenID callback failed with replay/invalid nonce, trying direct check_authentication fallback first', {
+          expectedReturnURL: authOptions.returnURL,
+          openidReturnTo: req.query['openid.return_to'] ?? null
+        });
+        return verifySteamOpenIdAssertionManually(req)
+          .then((fallbackUser) => {
+            if (!fallbackUser) return null;
+            return req.logIn(fallbackUser, (loginError) => {
+              if (loginError) {
+                console.error('[ERROR] Failed to establish Steam session after manual nonce fallback', loginError);
+                return next(loginError);
+              }
+              if (req.session?.steamAuth) delete req.session.steamAuth;
+              if (req.session?.steamClientOrigin) delete req.session.steamClientOrigin;
+              console.warn('[WARN] Steam OpenID callback accepted via manual nonce fallback', {
+                steamId: fallbackUser.steamId
+              });
+              return res.redirect('/');
+            });
+          })
+          .then((handled) => {
+            if (handled !== null) return;
+            if (trySwitchOpenIdProvider(error)) {
+              return authenticateSteam(req, res, next, authOptions);
+            }
+            return res.status(401).json({
+              error: 'Steam OpenID callback failed',
+              details: error.message,
+              cause: error?.openidError?.message ?? error?.cause?.message ?? null,
+              expectedReturnURL: authOptions.returnURL,
+              expectedRealm: authOptions.realm,
+              openidReturnTo: req.query['openid.return_to'] ?? null
+            });
+          })
+          .catch((fallbackError) => {
+            console.error('[ERROR] Steam OpenID manual nonce fallback failed', fallbackError);
+            return res.status(401).json({
+              error: 'Steam OpenID callback failed',
+              details: error.message,
+              cause: error?.openidError?.message ?? error?.cause?.message ?? null,
+              expectedReturnURL: authOptions.returnURL,
+              expectedRealm: authOptions.realm,
+              openidReturnTo: req.query['openid.return_to'] ?? null
+            });
+          });
+      }
+
       const shouldRetryWithOpenIdReturnTo =
         /Failed to verify assertion/i.test(String(error.message ?? '')) &&
         !req.__steamRetriedWithOpenIdReturnTo;
