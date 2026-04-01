@@ -354,6 +354,9 @@ function normalizeMarketHashName(raw = '') {
 }
 
 function parseFloatFromInspectResponse(payload) {
+  if (payload && typeof payload === 'object' && payload.iteminfo && payload.iteminfo.error) {
+    return null;
+  }
   const candidates = [
     payload?.iteminfo?.floatvalue,
     payload?.iteminfo?.float_value,
@@ -367,6 +370,32 @@ function parseFloatFromInspectResponse(payload) {
     if (Number.isFinite(num) && num >= 0 && num <= 1) return num;
   }
   return null;
+}
+
+function parseInspectLinkParams(rawInspectLink = '') {
+  const decoded = decodeURIComponent(String(rawInspectLink ?? '').trim());
+  if (!decoded) return null;
+  const normalized = decoded.replace(/\+/g, ' ');
+  const match = normalized.match(/csgo_econ_action_preview\s+([SM])(\d+)A(\d+)D(\d+)/i);
+  if (!match) return null;
+  const [, type, ownerOrMarketId, assetId, d] = match;
+  const params = { a: assetId, d };
+  if (type.toUpperCase() === 'S') params.s = ownerOrMarketId;
+  if (type.toUpperCase() === 'M') params.m = ownerOrMarketId;
+  return params;
+}
+
+async function resolveFloatByInspectParams(params) {
+  if (!params?.a || !params?.d) return null;
+  try {
+    const response = await getWithDirectFallback(CSFLOAT_INSPECT_API, {
+      params,
+      timeout: 6500
+    });
+    return parseFloatFromInspectResponse(response?.data);
+  } catch {
+    return null;
+  }
 }
 
 function buildSkinDictionary() {
@@ -397,18 +426,72 @@ const skinDictionary = buildSkinDictionary();
 async function resolveFloatFromInspectLink(item = {}) {
   if (typeof item.floatValue === 'number') return item.floatValue;
   if (!item.inspectLink) return null;
+  const inspectParams = parseInspectLinkParams(item.inspectLink);
   try {
     const response = await getWithDirectFallback(CSFLOAT_INSPECT_API, {
       params: { url: item.inspectLink },
       timeout: 5500
     });
-    return parseFloatFromInspectResponse(response?.data);
+    const parsed = parseFloatFromInspectResponse(response?.data);
+    if (typeof parsed === 'number') return parsed;
   } catch {
-    return null;
+    // fallback below
   }
+  if (inspectParams) return await resolveFloatByInspectParams(inspectParams);
+  return null;
+}
+
+async function resolveMissingFloatsByBulkInspect(items = []) {
+  const pending = items
+    .map((item, index) => ({ item, index }))
+    .filter(({ item }) => typeof item.floatValue !== 'number' && item.inspectLink);
+  if (pending.length === 0) return items;
+
+  const byInspectLink = new Map();
+  for (const entry of pending) {
+    const key = String(entry.item.inspectLink);
+    const list = byInspectLink.get(key) ?? [];
+    list.push(entry.index);
+    byInspectLink.set(key, list);
+  }
+
+  const uniqueLinks = [...byInspectLink.keys()];
+  const chunkSize = 40;
+  for (let offset = 0; offset < uniqueLinks.length; offset += chunkSize) {
+    const chunkLinks = uniqueLinks.slice(offset, offset + chunkSize);
+    try {
+      const response = await postWithDirectFallback(`${CSFLOAT_INSPECT_API}/bulk`, {
+        links: chunkLinks.map((link) => ({ link }))
+      }, {
+        timeout: 12000
+      });
+      const payload = response?.data;
+      if (!payload || typeof payload !== 'object') continue;
+
+      for (const link of chunkLinks) {
+        const linkParams = parseInspectLinkParams(link);
+        const assetId = linkParams?.a;
+        if (!assetId) continue;
+        const result = payload?.[assetId];
+        const exactFloat = parseFloatFromInspectResponse(result);
+        if (typeof exactFloat !== 'number') continue;
+        for (const index of byInspectLink.get(link) ?? []) {
+          items[index] = {
+            ...items[index],
+            floatValue: exactFloat,
+            floatSource: 'csfloat_inspect'
+          };
+        }
+      }
+    } catch {
+      // fallback to single-link flow
+    }
+  }
+  return items;
 }
 
 async function resolveMissingFloats(items = []) {
+  await resolveMissingFloatsByBulkInspect(items);
   const inspectFloatCache = new Map();
   const queue = items
     .map((item, index) => ({ item, index }))
@@ -1617,17 +1700,75 @@ app.get('/api/inventory/by-api-key', async (req, res) => {
   try {
     const steamId = String(req.query.steamId ?? '').trim();
     const apiKey = resolveSteamApiKey(req);
+    const fallbackErrors = [];
+    const pushFallbackError = (source, error) => {
+      fallbackErrors.push({
+        source,
+        status: Number(error?.response?.status ?? 0) || null,
+        message: String(error?.message ?? 'unknown error')
+      });
+    };
     if (!steamId || !/^\d{17}$/.test(steamId)) {
       return res.status(400).json({ error: 'Missing or invalid steamId (expects 17-digit SteamID64).' });
     }
     if (!apiKey) {
       return res.status(400).json({ error: 'Missing Steam Web API Key. Provide it via query apiKey or x-steam-api-key.' });
     }
-    const econServiceResult = await fetchInventoryFromEconService(steamId, apiKey);
-    if (econServiceResult.total <= 0) {
-      return res.status(404).json(await buildInventoryResponse(econServiceResult, 'API Key 读取完成，但返回 0 件。请检查 Key 权限、SteamID、库存可见性与网络出口。'));
+    try {
+      const econServiceResult = await fetchInventoryFromEconService(steamId, apiKey);
+      if (econServiceResult.total > 0) {
+        return res.json(await buildInventoryResponse(econServiceResult, '通过 Steam Web API Key 直接读取库存（无需 Steam 登录会话）。'));
+      }
+      pushFallbackError('econ_service_empty', new Error('IEconService returned 0 items.'));
+    } catch (error) {
+      pushFallbackError('econ_service', error);
     }
-    return res.json(await buildInventoryResponse(econServiceResult, '通过 Steam Web API Key 直接读取库存（无需 Steam 登录会话）。'));
+
+    try {
+      const communityResult = await fetchInventoryFromCommunity(steamId);
+      if (communityResult.total > 0) {
+        return res.json(await buildInventoryResponse(communityResult, 'IEconService 返回空后，已回退到 steamcommunity inventory 公开库存接口。'));
+      }
+      pushFallbackError('community_empty', new Error('steamcommunity inventory returned 0 items.'));
+    } catch (error) {
+      pushFallbackError('community', error);
+    }
+
+    try {
+      const legacyItems = await fetchInventory(steamId, apiKey);
+      const normalized = legacyItems
+        .filter((it) => it.inventory > 0)
+        .map((it) => ({
+          id: String(it.id),
+          marketHashName: it.market_hash_name ?? '',
+          floatValue: typeof it.floatvalue === 'number' ? it.floatvalue : null,
+          tradable: true,
+          cooldown: false,
+          cooldownText: []
+        }));
+      const resultItems = normalizeInventory(normalized);
+      if (resultItems.length > 0) {
+        return res.json(await buildInventoryResponse({
+          source: 'legacy_econitems_api_key',
+          total: resultItems.length,
+          cooldownCount: 0,
+          items: resultItems
+        }, 'IEconService 与社区库存都为空后，回退到 IEconItems_730 旧接口。'));
+      }
+      pushFallbackError('legacy_econitems_empty', new Error('IEconItems_730 returned 0 items.'));
+    } catch (error) {
+      pushFallbackError('legacy_econitems', error);
+    }
+
+    return res.status(404).json(await withInventoryMeta({
+      error: 'Inventory fetched but no items were returned',
+      details: 'API Key 与回退链路均未返回任何库存数据。请确认 SteamID、库存公开状态、Key 域名绑定与代理出口。',
+      source: 'api_key',
+      total: 0,
+      cooldownCount: 0,
+      items: [],
+      fallbackErrors
+    }));
   } catch (error) {
     const statusCode = Number(error?.response?.status ?? 0);
     const details = statusCode === 403
