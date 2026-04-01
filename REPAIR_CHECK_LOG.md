@@ -447,3 +447,32 @@
 ### 结果
 - 对“同一合法回调被重复消费”场景，登录成功率显著提升。
 - 同时保留严格前置约束，避免把兜底做成无条件放行。
+
+---
+
+## 2026-04-01（补修：已登录但库存显示 0 / source unknown）
+
+### 问题现象
+- 日志中出现：`[WARN] Missing STEAM_API_KEY. Steam login/inventory API will not work.`。
+- 前端仍显示“已读取库存材料 0 件”，且元信息 `source` 可能显示为 `unknown`，容易误判成“账号真没库存”。
+
+### 根因
+- `/api/inventory` 在未配置 `STEAM_API_KEY` 时依旧走读取流程，前端也没有区分“接口错误”和“成功但空库存”。
+
+### 本轮修复
+1. **后端显式返回可读错误**
+   - `/api/inventory` 在缺少 `STEAM_API_KEY` 时返回 `503`，并携带明确说明：
+     - Steam 登录可用；
+     - 读取库存需要配置 `STEAM_API_KEY`。
+   - 同时固定返回 `source/total/cooldownCount/items`，避免前端出现 `unknown`。
+
+2. **前端区分库存接口失败与空库存**
+   - `tryLoadSession()` 改为先检查 `response.ok`。
+   - 非 2xx 时显示“库存读取失败：<具体原因>”，不再伪装成“已读取 0 件”。
+
+3. **README 增补故障指引**
+   - 新增 FAQ：`已登录但“库存 0 件 / source unknown”`，明确说明如何配置 `STEAM_API_KEY` 以及替代方案（交易链接读取）。
+
+### 结果
+- 该问题现在会被明确识别为“配置缺失”，不会再误导为“库存为空”。
+- 你后续排障可以直接看前端提示与 503 返回内容，定位速度会更快。
