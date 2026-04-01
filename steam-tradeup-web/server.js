@@ -1,4 +1,5 @@
 import dotenv from 'dotenv';
+import net from 'node:net';
 
 dotenv.config();
 
@@ -47,7 +48,45 @@ function resolveSteamProxyUrl() {
   return null;
 }
 
-const proxyUrl = resolveSteamProxyUrl();
+async function isProxyReachable(proxy) {
+  if (!proxy) return false;
+
+  try {
+    const parsed = new URL(proxy);
+    const host = parsed.hostname;
+    const port = Number(parsed.port);
+    if (!host || !Number.isInteger(port) || port <= 0) return false;
+
+    await new Promise((resolve, reject) => {
+      const socket = net.connect({ host, port });
+      const timer = setTimeout(() => {
+        socket.destroy();
+        reject(new Error('timeout'));
+      }, 1200);
+
+      socket.once('connect', () => {
+        clearTimeout(timer);
+        socket.end();
+        resolve();
+      });
+      socket.once('error', (error) => {
+        clearTimeout(timer);
+        reject(error);
+      });
+    });
+
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const resolvedProxyUrl = resolveSteamProxyUrl();
+const proxyUrl = (await isProxyReachable(resolvedProxyUrl)) ? resolvedProxyUrl : null;
+
+if (resolvedProxyUrl && !proxyUrl) {
+  console.warn(`[WARN] Steam/OpenID proxy is unreachable, fallback to direct connection: ${resolvedProxyUrl}`);
+}
 
 if (proxyUrl) {
   process.env.GLOBAL_AGENT_HTTP_PROXY = proxyUrl;
