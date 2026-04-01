@@ -81,3 +81,27 @@
 - 若交易链接仍 400：
   1. 检查链接是否来自 `steamcommunity.com/tradeoffer/new/...`。
   2. 检查对方库存与个人资料是否公开。
+
+---
+
+## 2026-04-01（OpenID `Failed to discover OP endpoint URL`）
+
+### 问题现象
+- 访问 `/api/auth/steam` 后，服务端报错：`InternalOpenIDError: Failed to discover OP endpoint URL`。
+- 日志中可见 realm/returnURL 已按反向代理域名构建，但 OpenID Provider 发现阶段失败。
+
+### 本轮修复
+1. **修正 OpenID Provider 默认值为登录端点**
+   - 将默认 `STEAM_OPENID_PROVIDER` 从 `https://steamcommunity.com/openid` 调整为 `https://steamcommunity.com/openid/login`。
+   - 同步调整 `normalizeOpenIdProvider()`：优先规范到 `/openid/login`，避免默认落在发现兼容性较差的路径。
+
+2. **新增 Provider 候选与自动回退**
+   - 新增 `getOpenIdProviderCandidates()`，自动构造主端点与回退端点（`/openid/login` ↔ `/openid`）。
+   - 当捕获到 `Failed to discover OP endpoint URL` 时，自动切换到下一候选 Provider 并重试一次，降低单一路径失败概率。
+
+3. **增强排障日志**
+   - 在 Steam 登录启动日志中新增 `providerURL` 字段，便于确认当前实际使用的 OpenID Provider。
+
+### 结果
+- 代码层面已补齐“默认端点 + 回退重试 + 可观测性”三项能力，可覆盖你日志中的发现失败场景。
+- 若仍失败，优先检查运行主机是否可连通 `steamcommunity.com`（DNS、TLS、出口代理、面板防火墙）。
