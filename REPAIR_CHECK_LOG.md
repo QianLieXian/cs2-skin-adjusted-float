@@ -227,3 +227,34 @@
 ### 结果
 - 在“反代头偶发被改写为 localhost”的环境下，服务端仍可优先使用公网地址构建 Steam OpenID 回调参数。
 - 进一步降低“授权页显示 localhost / 回调落 localhost”残余概率。
+
+---
+
+## 2026-04-01（继续修复：多级反代 `X-Forwarded-Host` 顺序导致仍显示 localhost）
+
+### 问题现象
+- 用户反馈仍出现 Steam 授权页提示“登录到 localhost”。
+- 回调 URL 仍落到 `http://localhost:5173/api/auth/steam/return?...`。
+
+### 根因补充
+1. **多级反代时 `X-Forwarded-Host` 常为逗号列表**
+   - 例如：`localhost:5173, your-domain.com` 或反过来。
+   - 旧逻辑只取第一个值，若第一个恰好是 localhost，则会继续构建出 localhost 的 OpenID 地址。
+
+2. **`resolveRequestBaseUrl()` 与 `resolveClientOrigin()` 都受该问题影响**
+   - 两条路径都曾使用“逗号分隔列表第一个元素”策略。
+
+### 本轮修复
+1. **新增代理头解析工具函数**
+   - `parseHeaderList(raw)`: 统一解析逗号分隔头值。
+   - `pickPreferredHost(raw)`: 优先选择“非 localhost”主机，若全是本地地址再回退首项。
+   - `pickPreferredProto(raw)`: 协议头统一取第一项（保持与代理链惯例一致）。
+
+2. **替换关键主机解析点**
+   - 在 `resolveClientOrigin()` 中，`x-forwarded-host/x-original-host/x-real-host` 全部改用 `pickPreferredHost()`。
+   - 在 `resolveRequestBaseUrl()` 中，`x-forwarded-host` 改用 `pickPreferredHost()`。
+   - 协议头读取统一改用 `pickPreferredProto()`。
+
+### 结果
+- 当代理头包含多个 host 且首项是 localhost 时，后端会优先选取非 localhost 的公网域名来构建 OpenID `realm/returnURL`。
+- 进一步减少“明明从公网访问，Steam 仍显示登录到 localhost”的场景。

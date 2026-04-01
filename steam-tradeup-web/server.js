@@ -397,6 +397,25 @@ function parseForwardedHeader(raw) {
   return `${safeProto}://${host}`;
 }
 
+function parseHeaderList(raw) {
+  return String(raw ?? '')
+    .split(',')
+    .map((it) => it.trim())
+    .filter(Boolean);
+}
+
+function pickPreferredHost(raw) {
+  const hosts = parseHeaderList(raw);
+  if (hosts.length === 0) return '';
+  const nonLocal = hosts.find((host) => !isLocalHost(host));
+  return nonLocal || hosts[0];
+}
+
+function pickPreferredProto(raw) {
+  const protos = parseHeaderList(raw);
+  return protos[0] || '';
+}
+
 function resolveClientOrigin(req) {
   const explicitOrigin = getHeaderBaseUrl(req.query.origin);
   if (explicitOrigin && !isLocalBaseUrl(explicitOrigin)) return explicitOrigin;
@@ -413,15 +432,15 @@ function resolveClientOrigin(req) {
   if (forwardedBaseUrl && !isLocalBaseUrl(forwardedBaseUrl)) return forwardedBaseUrl;
 
   const hostCandidates = [
-    String(req.headers['x-forwarded-host'] ?? '').split(',')[0].trim(),
-    String(req.headers['x-original-host'] ?? '').split(',')[0].trim(),
-    String(req.headers['x-real-host'] ?? '').split(',')[0].trim()
+    pickPreferredHost(req.headers['x-forwarded-host']),
+    pickPreferredHost(req.headers['x-original-host']),
+    pickPreferredHost(req.headers['x-real-host'])
   ].filter(Boolean);
   const protoCandidates = [
-    String(req.headers['x-forwarded-proto'] ?? '').split(',')[0].trim(),
-    String(req.headers['x-forwarded-protocol'] ?? '').split(',')[0].trim(),
-    String(req.headers['x-forwarded-scheme'] ?? '').split(',')[0].trim(),
-    String(req.headers['x-scheme'] ?? '').split(',')[0].trim(),
+    pickPreferredProto(req.headers['x-forwarded-proto']),
+    pickPreferredProto(req.headers['x-forwarded-protocol']),
+    pickPreferredProto(req.headers['x-forwarded-scheme']),
+    pickPreferredProto(req.headers['x-scheme']),
     req.protocol
   ].filter(Boolean);
   for (const host of hostCandidates) {
@@ -444,8 +463,8 @@ function resolveRequestBaseUrl(req) {
   const clientOrigin = resolveClientOrigin(req);
   if (clientOrigin) return clientOrigin;
 
-  const forwardedProto = String(req.headers['x-forwarded-proto'] ?? '').split(',')[0].trim();
-  const forwardedHost = String(req.headers['x-forwarded-host'] ?? '').split(',')[0].trim();
+  const forwardedProto = pickPreferredProto(req.headers['x-forwarded-proto']);
+  const forwardedHost = pickPreferredHost(req.headers['x-forwarded-host']);
   const host = forwardedHost || req.get('host');
   const protocol = forwardedProto || req.protocol || 'http';
 
