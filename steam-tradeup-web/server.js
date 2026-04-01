@@ -186,7 +186,7 @@ const {
   STEAM_API_KEY,
   STEAM_REALM = `${BASE_URL}/`,
   STEAM_RETURN_URL = `${BASE_URL}/api/auth/steam/return`,
-  STEAM_OPENID_PROVIDER = 'https://steamcommunity.com/openid',
+  STEAM_OPENID_PROVIDER = 'https://steamcommunity.com/openid/login',
   STEAM_WEB_API = 'https://api.steampowered.com',
   CSFLOAT_INSPECT_API = 'https://api.csfloat.com'
 } = process.env;
@@ -196,19 +196,31 @@ const enforceCanonicalHost =
 
 function normalizeOpenIdProvider(raw) {
   const value = String(raw ?? '').trim();
-  if (!value) return 'https://steamcommunity.com/openid';
+  if (!value) return 'https://steamcommunity.com/openid/login';
   try {
     const url = new URL(value);
     const normalizedPath = url.pathname.replace(/\/+$/, '');
-    if (normalizedPath === '/openid/login') {
-      url.pathname = '/openid';
-      url.search = '';
-      url.hash = '';
+    if (normalizedPath === '/openid') {
+      url.pathname = '/openid/login';
     }
+    url.search = '';
+    url.hash = '';
     return url.toString().replace(/\/$/, '');
   } catch {
-    return 'https://steamcommunity.com/openid';
+    return 'https://steamcommunity.com/openid/login';
   }
+}
+
+function getOpenIdProviderCandidates(raw) {
+  const primary = normalizeOpenIdProvider(raw);
+  const candidates = [primary];
+  const fallback = primary.endsWith('/openid/login')
+    ? primary.replace(/\/openid\/login$/, '/openid')
+    : primary.endsWith('/openid')
+      ? `${primary}/login`
+      : null;
+  if (fallback && !candidates.includes(fallback)) candidates.push(fallback);
+  return candidates;
 }
 
 function normalizeBaseUrl(raw) {
@@ -274,6 +286,31 @@ passport.use(
     }
   )
 );
+
+const openIdProviderCandidates = getOpenIdProviderCandidates(STEAM_OPENID_PROVIDER);
+let currentProviderCandidateIndex = 0;
+
+function getCurrentOpenIdProvider() {
+  return openIdProviderCandidates[currentProviderCandidateIndex];
+}
+
+function trySwitchOpenIdProvider(error) {
+  const message = String(error?.message ?? '');
+  const isDiscoverError = message.includes('Failed to discover OP endpoint URL');
+  const nextIndex = currentProviderCandidateIndex + 1;
+  if (!isDiscoverError || nextIndex >= openIdProviderCandidates.length) return false;
+  currentProviderCandidateIndex = nextIndex;
+  const nextProvider = openIdProviderCandidates[currentProviderCandidateIndex];
+  const steamStrategy = passport._strategy?.('steam');
+  if (steamStrategy) steamStrategy._providerURL = nextProvider;
+  console.warn(`[WARN] OpenID provider discover failed, switching to fallback provider: ${nextProvider}`);
+  return true;
+}
+
+function authenticateSteam(req, res, next, authOptions, callback) {
+  const run = () => passport.authenticate('steam', authOptions, callback)(req, res, next);
+  run();
+}
 
 const app = express();
 app.set('trust proxy', true);
@@ -355,9 +392,10 @@ app.get('/api/auth/steam', (req, res, next) => {
     forwardedHost: req.headers['x-forwarded-host'] ?? null,
     forwardedProto: req.headers['x-forwarded-proto'] ?? null,
     realm: authOptions.realm,
-    returnURL: authOptions.returnURL
+    returnURL: authOptions.returnURL,
+    providerURL: getCurrentOpenIdProvider()
   });
-  passport.authenticate('steam', authOptions)(req, res, next);
+  authenticateSteam(req, res, next, authOptions);
 });
 
 app.get('/api/auth/steam/return', (req, res, next) => {
@@ -382,8 +420,11 @@ app.get('/api/auth/steam/return', (req, res, next) => {
     openidMode: req.query['openid.mode'] ?? null
   });
 
-  passport.authenticate('steam', authOptions, (error, user) => {
+  authenticateSteam(req, res, next, authOptions, (error, user) => {
     if (error) {
+      if (trySwitchOpenIdProvider(error)) {
+        return authenticateSteam(req, res, next, authOptions);
+      }
       console.error('[ERROR] Steam OpenID callback failed', {
         message: error.message,
         stack: error.stack,
@@ -411,7 +452,7 @@ app.get('/api/auth/steam/return', (req, res, next) => {
       if (req.session?.steamAuth) delete req.session.steamAuth;
       return res.redirect('/');
     });
-  })(req, res, next);
+  });
 });
 
 app.get('/api/session', (req, res) => {
