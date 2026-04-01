@@ -1044,6 +1044,17 @@ async function fetchInventory(steamId) {
 }
 
 app.get('/api/inventory', requireAuth, async (req, res) => {
+  if (!STEAM_API_KEY) {
+    return res.status(503).json({
+      error: 'Missing STEAM_API_KEY',
+      details: 'Steam 登录可用，但读取库存需要在后端 .env 配置 STEAM_API_KEY。',
+      source: 'auth',
+      total: 0,
+      cooldownCount: 0,
+      items: []
+    });
+  }
+
   try {
     const items = await fetchInventory(req.user.steamId);
     const normalized = items
@@ -1058,16 +1069,23 @@ app.get('/api/inventory', requireAuth, async (req, res) => {
         cooldownText: []
       }));
 
+    const resultItems = normalizeInventory(normalized);
     res.json({
       note: 'Steam 官方库存接口通常不直接返回 float；你可将 floatvalue 字段替换为 CSFloat 检测结果。',
       inspectApi: `${CSFLOAT_INSPECT_API}/?url=<inspect_link>`,
       source: 'auth',
-      items: normalizeInventory(normalized)
+      total: resultItems.length,
+      cooldownCount: resultItems.filter((it) => it.cooldown).length,
+      items: resultItems
     });
   } catch (error) {
     res.status(500).json({
       error: 'Failed to fetch inventory',
-      details: error.message
+      details: error.message,
+      source: 'auth',
+      total: 0,
+      cooldownCount: 0,
+      items: []
     });
   }
 });

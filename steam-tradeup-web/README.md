@@ -26,6 +26,28 @@ npm run start
 
 
 
+
+### 已登录但“库存 0 件 / source unknown”
+
+这通常是后端缺少 `STEAM_API_KEY` 导致的，不是你 Steam 账号没物品。
+
+- 启动日志如果出现 `[WARN] Missing STEAM_API_KEY`，说明服务端无法调用 Steam 库存 API。
+- 新版本会在页面明确显示“库存读取失败：Steam 登录可用，但读取库存需要在后端 .env 配置 STEAM_API_KEY”。
+
+请在 `steam-tradeup-web/.env` 增加：
+
+```env
+STEAM_API_KEY=你的SteamWebAPIKey
+```
+
+保存后重启：
+
+```bash
+npm run start
+```
+
+如果你暂时不想配置 API Key，可改用“通过交易链接读取库存”（要求库存公开）。
+
 ### `InternalOpenIDError: Failed to verify assertion`
 
 这通常不是 API Key 错误，而是 **Steam 回调地址不一致**（域名/端口/http-https 任意一项不一致）导致：

@@ -347,8 +347,15 @@ async function tryLoadSession() {
       return;
     }
     ui.authStatus.textContent = `已登录 Steam: ${session.user.personaName} (${session.user.steamId})`;
-    const invResp = await fetch(API.inventory).then((r) => r.json());
+    const invRes = await fetch(API.inventory);
+    const invResp = await invRes.json();
     inventoryItems = invResp.items || [];
+    if (!invRes.ok) {
+      const reason = invResp?.details || invResp?.error || '读取失败';
+      ui.authStatus.textContent += `\n库存读取失败：${reason}`;
+      renderInventoryMeta(invResp);
+      return;
+    }
     ui.authStatus.textContent += `\n已读取库存材料 ${inventoryItems.length} 件`;
     renderInventoryMeta(invResp);
   } catch {
