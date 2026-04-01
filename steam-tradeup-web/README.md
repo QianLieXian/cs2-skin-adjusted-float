@@ -31,15 +31,15 @@ npm run start
 
 1. 在 `.env` 中确认：
    - `STEAM_OPENID_PROVIDER=https://steamcommunity.com/openid`
-2. 如果仍超时，配置代理（任选一种，示例端口 `7897`）：
-   - `STEAM_PROXY_URL=http://127.0.0.1:7897`
-   - 或 `STEAM_PROXY_PORT=7897`（默认主机为 `127.0.0.1`）
-   - Clash 用户也可直接设 `MIXED_PROXY_PORT=7897` 或 `CLASH_MIXED_PORT=7897`
+2. 如果仍超时，配置代理（任选一种，示例端口 `7898`）：
+   - `STEAM_PROXY_URL=http://127.0.0.1:7898`
+   - 或 `STEAM_PROXY_PORT=7898`（默认主机为 `127.0.0.1`）
+   - Clash 用户也可直接设 `MIXED_PROXY_PORT=7898` 或 `CLASH_MIXED_PORT=7898`
 3. 本项目会优先尝试用户环境中的代理（`HTTPS_PROXY/HTTP_PROXY/ALL_PROXY` 等），不再清空这些变量。
 4. 重启服务 `npm run start`。
 
 > 代理开启后，Steam 登录、OpenID 发现、公开库存读取都会走该代理。
-> 如需显式指定代理，请优先设置 `STEAM_PROXY_URL`（例如 `http://127.0.0.1:7897`）。
+> 如需显式指定代理，请优先设置 `STEAM_PROXY_URL`（例如 `http://127.0.0.1:7898`）。
 
 
 这是依赖未安装或安装不完整导致的。请在 `steam-tradeup-web` 目录执行：
@@ -64,6 +64,17 @@ npm install
 ```
 
 > 建议使用 Node.js LTS（20.x 或 22.x）。
+
+如果你只开了 Clash 混合端口（例如 `7898`），但日志里还在连 `127.0.0.1:7890`，说明 npm 读到了旧代理配置。可在项目目录执行：
+
+```bash
+npm config delete proxy
+npm config delete https-proxy
+npm install
+```
+
+或直接使用本项目内置的 `.npmrc`（已默认指向 `http://127.0.0.1:7898`）。
+
 
 ## Steam 对接说明
 
