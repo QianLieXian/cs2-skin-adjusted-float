@@ -37,15 +37,36 @@ function resolveSteamProxyCandidates() {
   } = process.env;
 
   const candidates = [];
+  const explicitCandidates = [];
+  const fixedPortCandidates = [];
+  const systemCandidates = [];
   const pushCandidate = (value) => {
     const normalized = normalizeProxyUrl(value);
     if (!normalized) return;
     if (candidates.includes(normalized)) return;
     candidates.push(normalized);
   };
+  const pushExplicitCandidate = (value) => {
+    const normalized = normalizeProxyUrl(value);
+    if (!normalized) return;
+    if (explicitCandidates.includes(normalized)) return;
+    explicitCandidates.push(normalized);
+  };
+  const pushFixedPortCandidate = (value) => {
+    const normalized = normalizeProxyUrl(value);
+    if (!normalized) return;
+    if (fixedPortCandidates.includes(normalized)) return;
+    fixedPortCandidates.push(normalized);
+  };
+  const pushSystemCandidate = (value) => {
+    const normalized = normalizeProxyUrl(value);
+    if (!normalized) return;
+    if (systemCandidates.includes(normalized)) return;
+    systemCandidates.push(normalized);
+  };
 
   const explicit = normalizeProxyUrl(STEAM_PROXY_URL);
-  if (explicit) pushCandidate(explicit);
+  if (explicit) pushExplicitCandidate(explicit);
 
   const systemProxyValues = [
     HTTPS_PROXY,
@@ -58,26 +79,25 @@ function resolveSteamProxyCandidates() {
     npm_config_proxy
   ];
 
-  // 默认优先尝试用户侧代理环境变量（例如 Clash/系统代理），避免写死“内部代理”。
-  for (const value of systemProxyValues) {
-    pushCandidate(value);
-  }
-
   const fixedPorts = [STEAM_PROXY_PORT, MIXED_PROXY_PORT, CLASH_MIXED_PORT]
     .map((it) => String(it ?? '').trim())
     .filter(Boolean);
 
   for (const port of fixedPorts) {
     const host = String(STEAM_PROXY_HOST ?? '127.0.0.1').trim() || '127.0.0.1';
-    pushCandidate(`http://${host}:${port}`);
+    pushFixedPortCandidate(`http://${host}:${port}`);
   }
 
   const allowSystemProxy = String(STEAM_USE_SYSTEM_PROXY ?? '').toLowerCase() === 'true';
-  if (allowSystemProxy) {
+  if (allowSystemProxy || (explicitCandidates.length === 0 && fixedPortCandidates.length === 0)) {
     for (const value of systemProxyValues) {
-      pushCandidate(value);
+      pushSystemCandidate(value);
     }
   }
+
+  for (const value of explicitCandidates) pushCandidate(value);
+  for (const value of fixedPortCandidates) pushCandidate(value);
+  for (const value of systemCandidates) pushCandidate(value);
 
   return candidates;
 }
@@ -191,7 +211,7 @@ const proxyConfig = proxyUrl
 
 const http = axios.create({
   timeout: 25000,
-  proxy: proxyConfig
+  proxy: proxyConfig ?? false
 });
 
 passport.serializeUser((user, done) => done(null, user));
