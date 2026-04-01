@@ -1,5 +1,39 @@
 # 修复检查日志（2026-04-01）
 
+## 2026-04-01（再修：已登录 + 已填 API Key 但库存仍显示 0）
+
+### 问题现象
+- 你的日志里 `/api/inventory` 在 `community` 失败后返回了 `source: econ_service_api, total: 0`。
+- 前端展示“库存来源 econ_service_api，总数 0”，造成“看起来成功但没有库存”的误导。
+
+### 根因判断
+1. `/api/inventory` 只要 `IEconService` 调用成功（HTTP 200）就直接返回，即使 `items` 实际为 0。
+2. `steamcommunity /inventory` 在某些代理/IP/可见性场景会返回 400，当前仅一个社区端点，容错不足。
+3. 对 “回退成功但结果为空” 缺少防误判策略，导致重复出现“修了但还是 0”。
+
+### 本轮修复
+1. **社区库存双端点回退**
+   - 已登录库存读取新增双路径：
+     - `https://steamcommunity.com/inventory/{steamId}/730/2`
+     - `https://steamcommunity.com/profiles/{steamId}/inventory/json/730/2`（旧 JSON 端点）
+   - 第一条失败会自动尝试第二条，提升在特定网络环境下的成功率。
+
+2. **IEconService 结果状态校验**
+   - 新增 `assertEconServiceResult()`，当 `result.status != 1` 时不再把请求当成功。
+   - 避免“接口返回了错误状态但仍被当作正常库存结果”的情况。
+
+3. **空结果不再伪成功**
+   - `IEconService` 与 `IEconItems_730` 回退结果为 0 时不再立即返回“成功”。
+   - 会继续尝试下一条回退，并把 `*_empty` 记录进 `fallbackErrors`，最终明确给出失败原因和排障方向。
+
+4. **错误提示增强**
+   - 400/403 场景提示加入“代理出口 IP 可能被 Steam 风控”的说明，便于你快速判断是否是网络出口问题。
+
+### 结果
+- 现在不会再出现“source=econ_service_api 且 total=0 但被当成功”的假阳性结果。
+- 日志里会明确记录每个回退路径（包括“空结果”）的失败原因，排障会更直接。
+- 在社区接口不稳定时，会多尝试一条旧 JSON 库存路径，提高读取成功概率。
+
 ## 2026-04-01（再次复修：已登录但 `/api/inventory` 500、库存仍显示 0）
 
 ### 问题现象

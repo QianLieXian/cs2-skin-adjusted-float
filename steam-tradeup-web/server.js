@@ -1144,22 +1144,85 @@ function parseCommunityInventoryPayload(data, steamId) {
   return parseAssetDescriptionInventoryPayload(data, steamId);
 }
 
-async function fetchInventoryFromCommunity(steamId) {
-  const invUrl = `https://steamcommunity.com/inventory/${steamId}/730/2`;
-  const response = await getWithDirectFallback(invUrl, {
-    params: { l: 'english', count: 5000 },
-    headers: {
-      Referer: 'https://steamcommunity.com/',
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
-    }
+function parseLegacyCommunityInventoryPayload(payload, steamId) {
+  const rgInventory = payload?.rgInventory ?? {};
+  const rgDescriptions = payload?.rgDescriptions ?? {};
+  const assets = Object.values(rgInventory);
+  const items = assets.map((asset) => {
+    const key = `${asset.classid}_${asset.instanceid ?? '0'}`;
+    const desc = rgDescriptions[key] ?? {};
+    const inspectAction = (desc.actions ?? []).find((a) => /Inspect in Game/i.test(a.name));
+    const inspectLink = (inspectAction?.link ?? '')
+      .replace('%owner_steamid%', steamId)
+      .replace('%assetid%', asset.id ?? asset.assetid ?? '');
+    const cooldownText = extractCooldownText([...(desc.owner_descriptions ?? []), ...(desc.descriptions ?? [])]);
+    const tradable = Number(desc.tradable ?? 1) === 1;
+    return {
+      id: String(asset.id ?? asset.assetid ?? ''),
+      marketHashName: desc.market_hash_name ?? desc.marketHashName ?? '',
+      iconUrl: desc.icon_url ? `https://community.fastly.steamstatic.com/economy/image/${desc.icon_url}/96fx96f` : '',
+      inspectLink,
+      tradable,
+      cooldown: !tradable || cooldownText.length > 0,
+      cooldownText,
+      floatValue: null
+    };
   });
-  const items = parseCommunityInventoryPayload(response.data, steamId);
-  return {
-    source: 'auth',
-    total: items.length,
-    cooldownCount: items.filter((it) => it.cooldown).length,
-    items
+  return normalizeInventory(items.filter((it) => it.id));
+}
+
+async function fetchInventoryFromCommunity(steamId) {
+  const headers = {
+    Referer: 'https://steamcommunity.com/',
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
   };
+  const primaryUrl = `https://steamcommunity.com/inventory/${steamId}/730/2`;
+  try {
+    const response = await getWithDirectFallback(primaryUrl, {
+      params: { l: 'english', count: 5000 },
+      headers
+    });
+    const items = parseCommunityInventoryPayload(response.data, steamId);
+    return {
+      source: 'auth',
+      total: items.length,
+      cooldownCount: items.filter((it) => it.cooldown).length,
+      items
+    };
+  } catch (primaryError) {
+    const legacyUrl = `https://steamcommunity.com/profiles/${steamId}/inventory/json/730/2`;
+    try {
+      const response = await getWithDirectFallback(legacyUrl, {
+        params: { l: 'english', count: 5000 },
+        headers
+      });
+      const items = parseLegacyCommunityInventoryPayload(response.data, steamId);
+      return {
+        source: 'auth_legacy_json',
+        total: items.length,
+        cooldownCount: items.filter((it) => it.cooldown).length,
+        items
+      };
+    } catch (legacyError) {
+      const primaryStatus = Number(primaryError?.response?.status ?? 0);
+      const legacyStatus = Number(legacyError?.response?.status ?? 0);
+      const aggregateError = new Error(
+        `Community inventory endpoints failed: /inventory/${steamId}/730/2(${primaryStatus || 'n/a'}) and /profiles/${steamId}/inventory/json/730/2(${legacyStatus || 'n/a'})`
+      );
+      aggregateError.response = legacyError?.response ?? primaryError?.response;
+      throw aggregateError;
+    }
+  }
+}
+
+function assertEconServiceResult(result = {}) {
+  const status = Number(result?.status ?? 1);
+  if (!Number.isNaN(status) && status !== 1) {
+    const detail = result?.statusDetail || result?.statusdetail || 'unknown status';
+    const err = new Error(`IEconService rejected request: status=${status}, detail=${detail}`);
+    err.response = { status };
+    throw err;
+  }
 }
 
 async function fetchInventoryFromEconService(steamId, apiKey) {
@@ -1178,6 +1241,7 @@ async function fetchInventoryFromEconService(steamId, apiKey) {
       }
     });
     const result = data?.result ?? {};
+    assertEconServiceResult(result);
     const chunk = parseAssetDescriptionInventoryPayload(result, steamId);
     allItems.push(...chunk);
     if (!result.more_items || !result.last_assetid) break;
@@ -1225,11 +1289,14 @@ app.get('/api/inventory', requireAuth, async (req, res) => {
     if (apiKey) {
       try {
         const econServiceResult = await fetchInventoryFromEconService(req.user.steamId, apiKey);
-        return res.json({
-          ...econServiceResult,
-          inspectApi: `${CSFLOAT_INSPECT_API}/?url=<inspect_link>`,
-          note: '主链路失败后，已回退到 IEconService/GetInventoryItemsWithDescriptions。'
-        });
+        if (econServiceResult.total > 0) {
+          return res.json({
+            ...econServiceResult,
+            inspectApi: `${CSFLOAT_INSPECT_API}/?url=<inspect_link>`,
+            note: '主链路失败后，已回退到 IEconService/GetInventoryItemsWithDescriptions。'
+          });
+        }
+        pushError('econ_service_empty', new Error('IEconService returned 0 items.'));
       } catch (econServiceError) {
         pushError('econ_service', econServiceError);
       }
@@ -1248,14 +1315,17 @@ app.get('/api/inventory', requireAuth, async (req, res) => {
             cooldownText: []
           }));
         const resultItems = normalizeInventory(normalized);
-        return res.json({
-          source: 'auth_legacy_api',
-          total: resultItems.length,
-          cooldownCount: 0,
-          items: resultItems,
-          inspectApi: `${CSFLOAT_INSPECT_API}/?url=<inspect_link>`,
-          note: '回退到 Steam Web API（IEconItems_730）读取。若仍为 0，通常不是 key 问题而是该接口对 CS2 数据不完整。'
-        });
+        if (resultItems.length > 0) {
+          return res.json({
+            source: 'auth_legacy_api',
+            total: resultItems.length,
+            cooldownCount: 0,
+            items: resultItems,
+            inspectApi: `${CSFLOAT_INSPECT_API}/?url=<inspect_link>`,
+            note: '回退到 Steam Web API（IEconItems_730）读取。若仍为 0，通常不是 key 问题而是该接口对 CS2 数据不完整。'
+          });
+        }
+        pushError('legacy_econitems_empty', new Error('IEconItems_730 returned 0 items.'));
       } catch (legacyError) {
         pushError('legacy_econitems', legacyError);
       }
@@ -1263,7 +1333,7 @@ app.get('/api/inventory', requireAuth, async (req, res) => {
 
     const statusCode = error?.response?.status;
     const hints = statusCode === 403 || statusCode === 400
-      ? 'Steam 社区库存接口拒绝访问：请确认该账号库存公开可见，或改用“交易链接读取库存”。'
+      ? 'Steam 社区库存接口拒绝访问：请确认该账号库存公开可见，或改用“交易链接读取库存”。如果你确认库存公开且有物品，请检查代理出口 IP 是否被 Steam 风控。'
       : '请检查网络/代理设置，确认服务器能访问 steamcommunity.com。';
     return res.status(500).json({
       error: 'Failed to fetch inventory',
