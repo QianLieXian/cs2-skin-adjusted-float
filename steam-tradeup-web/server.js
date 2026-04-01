@@ -240,7 +240,8 @@ const {
   STEAM_RETURN_URL = `${BASE_URL}/api/auth/steam/return`,
   STEAM_OPENID_PROVIDER = 'https://steamcommunity.com/openid',
   STEAM_WEB_API = 'https://api.steampowered.com',
-  CSFLOAT_INSPECT_API = 'https://api.csfloat.com',
+  CSFLOAT_INSPECT_API = 'https://api.csgofloat.com',
+  CSFLOAT_INSPECT_API_FALLBACKS = '',
   PUBLIC_BASE_URL = ''
 } = process.env;
 const hasExplicitBaseUrl = Boolean(String(process.env.BASE_URL ?? '').trim());
@@ -430,17 +431,61 @@ function parseInspectLinkParams(rawInspectLink = '') {
   return null;
 }
 
+function resolveInspectApiCandidates() {
+  const rawEnvList = String(CSFLOAT_INSPECT_API_FALLBACKS ?? '')
+    .split(',')
+    .map((it) => String(it ?? '').trim())
+    .filter(Boolean);
+  const rawCandidates = [CSFLOAT_INSPECT_API, ...rawEnvList, 'https://api.csgofloat.com', 'https://api.csfloat.com'];
+  const normalized = [];
+  for (const raw of rawCandidates) {
+    const value = String(raw ?? '').trim();
+    if (!value) continue;
+    try {
+      const parsed = new URL(value);
+      const normalizedUrl = parsed.toString().replace(/\/+$/, '');
+      if (normalized.includes(normalizedUrl)) continue;
+      normalized.push(normalizedUrl);
+    } catch {
+      // ignore malformed candidate
+    }
+  }
+  return normalized;
+}
+
+const INSPECT_API_CANDIDATES = resolveInspectApiCandidates();
+
+async function getInspectFloatByUrl(inspectLink) {
+  for (const baseUrl of INSPECT_API_CANDIDATES) {
+    try {
+      const response = await getWithDirectFallback(baseUrl, {
+        params: { url: inspectLink },
+        timeout: 5500
+      });
+      const parsed = parseFloatFromInspectResponse(response?.data);
+      if (typeof parsed === 'number') return parsed;
+    } catch {
+      // try next candidate
+    }
+  }
+  return null;
+}
+
 async function resolveFloatByInspectParams(params) {
   if (!params?.a || !params?.d) return null;
-  try {
-    const response = await getWithDirectFallback(CSFLOAT_INSPECT_API, {
-      params,
-      timeout: 6500
-    });
-    return parseFloatFromInspectResponse(response?.data);
-  } catch {
-    return null;
+  for (const baseUrl of INSPECT_API_CANDIDATES) {
+    try {
+      const response = await getWithDirectFallback(baseUrl, {
+        params,
+        timeout: 6500
+      });
+      const parsed = parseFloatFromInspectResponse(response?.data);
+      if (typeof parsed === 'number') return parsed;
+    } catch {
+      // try next candidate
+    }
   }
+  return null;
 }
 
 function buildSkinDictionary() {
@@ -477,16 +522,8 @@ async function resolveFloatFromInspectLink(item = {}) {
   } catch {
     inspectParams = null;
   }
-  try {
-    const response = await getWithDirectFallback(CSFLOAT_INSPECT_API, {
-      params: { url: item.inspectLink },
-      timeout: 5500
-    });
-    const parsed = parseFloatFromInspectResponse(response?.data);
-    if (typeof parsed === 'number') return parsed;
-  } catch {
-    // fallback below
-  }
+  const parsedByUrl = await getInspectFloatByUrl(item.inspectLink);
+  if (typeof parsedByUrl === 'number') return parsedByUrl;
   if (inspectParams) return await resolveFloatByInspectParams(inspectParams);
   return null;
 }
@@ -509,29 +546,32 @@ async function resolveMissingFloatsByBulkInspect(items = []) {
   const chunkSize = 40;
   for (let offset = 0; offset < uniqueLinks.length; offset += chunkSize) {
     const chunkLinks = uniqueLinks.slice(offset, offset + chunkSize);
-    try {
-      const response = await postWithDirectFallback(`${CSFLOAT_INSPECT_API}/bulk`, {
-        links: chunkLinks.map((link) => ({ link }))
-      }, {
-        timeout: 12000
-      });
-      const payload = response?.data;
-      if (!payload || typeof payload !== 'object') continue;
-      const parsedByLink = parseBulkInspectFloat(payload);
-      for (const link of chunkLinks) {
-        const linkParams = parseInspectLinkParams(link);
-        const exactFloat = parsedByLink.get(link) ?? parsedByLink.get(`asset:${linkParams?.a ?? ''}`);
-        if (typeof exactFloat !== 'number') continue;
-        for (const index of byInspectLink.get(link) ?? []) {
-          items[index] = {
-            ...items[index],
-            floatValue: exactFloat,
-            floatSource: 'csfloat_inspect'
-          };
+    for (const baseUrl of INSPECT_API_CANDIDATES) {
+      try {
+        const response = await postWithDirectFallback(`${baseUrl}/bulk`, {
+          links: chunkLinks.map((link) => ({ link }))
+        }, {
+          timeout: 12000
+        });
+        const payload = response?.data;
+        if (!payload || typeof payload !== 'object') continue;
+        const parsedByLink = parseBulkInspectFloat(payload);
+        for (const link of chunkLinks) {
+          const linkParams = parseInspectLinkParams(link);
+          const exactFloat = parsedByLink.get(link) ?? parsedByLink.get(`asset:${linkParams?.a ?? ''}`);
+          if (typeof exactFloat !== 'number') continue;
+          for (const index of byInspectLink.get(link) ?? []) {
+            items[index] = {
+              ...items[index],
+              floatValue: exactFloat,
+              floatSource: 'csfloat_inspect'
+            };
+          }
         }
+        break;
+      } catch {
+        // try next candidate
       }
-    } catch {
-      // fallback to single-link flow
     }
   }
   return items;
@@ -667,7 +707,8 @@ async function withInventoryMeta(result = {}) {
 async function buildInventoryResponse(rawResult, note) {
   return await withInventoryMeta({
     ...rawResult,
-    inspectApi: `${CSFLOAT_INSPECT_API}/?url=<inspect_link>`,
+    inspectApi: `${INSPECT_API_CANDIDATES[0] ?? CSFLOAT_INSPECT_API}/?url=<inspect_link>`,
+    inspectApiCandidates: INSPECT_API_CANDIDATES,
     note
   });
 }
