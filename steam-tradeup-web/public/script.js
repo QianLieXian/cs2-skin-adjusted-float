@@ -11,8 +11,10 @@ const ui = {
   loadDemoBtn: document.getElementById('loadDemoBtn'),
   exportLogsBtn: document.getElementById('exportLogsBtn'),
   loadByTradeUrlBtn: document.getElementById('loadByTradeUrlBtn'),
+  loadByApiKeyBtn: document.getElementById('loadByApiKeyBtn'),
   tradeUrlInput: document.getElementById('tradeUrlInput'),
   steamApiKeyInput: document.getElementById('steamApiKeyInput'),
+  steamIdInput: document.getElementById('steamIdInput'),
   calculateBtn: document.getElementById('calculateBtn'),
   targetFloat: document.getElementById('targetFloat'),
   collectionSelect: document.getElementById('collectionSelect'),
@@ -30,6 +32,7 @@ let skinData = null;
 let inventoryItems = [];
 let skinsByName = new Map();
 const API_KEY_STORAGE_KEY = 'steam_web_api_key';
+const STEAM_ID_STORAGE_KEY = 'steam_id_64';
 
 const COLLECTION_ZH = {
   'The Harlequin Collection': '哈乐昆收藏品',
@@ -116,6 +119,10 @@ const API_FETCH_OPTIONS = { credentials: 'include', cache: 'no-store' };
 
 function getSteamApiKey() {
   return sanitizeApiKey(ui.steamApiKeyInput?.value);
+}
+
+function getSteamId64() {
+  return String(ui.steamIdInput?.value ?? '').trim();
 }
 
 function parseTargetFloat(raw) {
@@ -457,6 +464,31 @@ function renderInventoryMeta(meta) {
   `;
 }
 
+async function loadByApiKeyDirect() {
+  const apiKey = getSteamApiKey();
+  const steamId = getSteamId64();
+  if (!apiKey) {
+    ui.authStatus.textContent = '请先填写 Steam Web API Key。';
+    return;
+  }
+  if (!/^\d{17}$/.test(steamId)) {
+    ui.authStatus.textContent = '请填写 17 位 SteamID64。';
+    return;
+  }
+  ui.authStatus.textContent = `正在通过 API Key 读取库存... (${steamId})`;
+  try {
+    const query = new URLSearchParams({ apiKey, steamId });
+    const resp = await fetch(`/api/inventory/by-api-key?${query.toString()}`, API_FETCH_OPTIONS);
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data?.details || data?.error || '读取失败');
+    inventoryItems = data.items || [];
+    ui.authStatus.textContent = `API Key 读取成功：SteamID ${steamId}，库存 ${inventoryItems.length} 件`;
+    renderInventoryMeta(data);
+  } catch (error) {
+    ui.authStatus.textContent = `API Key 读取失败：${error.message}`;
+  }
+}
+
 async function loadByTradeUrl() {
   const tradeUrl = ui.tradeUrlInput.value.trim();
   if (!tradeUrl) {
@@ -520,12 +552,22 @@ async function exportServerLogs() {
 function initApiKeyInput() {
   const saved = window.localStorage.getItem(API_KEY_STORAGE_KEY);
   if (saved) ui.steamApiKeyInput.value = saved;
+  const savedSteamId = window.localStorage.getItem(STEAM_ID_STORAGE_KEY);
+  if (savedSteamId) ui.steamIdInput.value = savedSteamId;
   ui.steamApiKeyInput.addEventListener('change', () => {
     const value = sanitizeApiKey(ui.steamApiKeyInput.value);
     if (value) {
       window.localStorage.setItem(API_KEY_STORAGE_KEY, value);
     } else {
       window.localStorage.removeItem(API_KEY_STORAGE_KEY);
+    }
+  });
+  ui.steamIdInput.addEventListener('change', () => {
+    const value = getSteamId64();
+    if (value) {
+      window.localStorage.setItem(STEAM_ID_STORAGE_KEY, value);
+    } else {
+      window.localStorage.removeItem(STEAM_ID_STORAGE_KEY);
     }
   });
 }
@@ -538,6 +580,7 @@ ui.steamLoginBtn.addEventListener('click', () => {
 ui.refreshInventoryBtn.addEventListener('click', refreshInventory);
 ui.loadDemoBtn.addEventListener('click', loadDemoInventory);
 ui.loadByTradeUrlBtn.addEventListener('click', loadByTradeUrl);
+ui.loadByApiKeyBtn.addEventListener('click', loadByApiKeyDirect);
 ui.exportLogsBtn.addEventListener('click', exportServerLogs);
 ui.collectionSelect.addEventListener('change', refreshRarityOptions);
 ui.raritySelect.addEventListener('change', refreshSkinOptions);

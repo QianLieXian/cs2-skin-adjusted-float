@@ -27,6 +27,15 @@
       <div class="api-key-box">
         <label for="steamApiKeyInput">可选：填写 Steam Web API Key（优先用于后端库存接口）</label>
         <input id="steamApiKeyInput" type="password" placeholder="例如：XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX" autocomplete="off" />
+        <div class="grid-3 api-direct-grid">
+          <div>
+            <label for="steamIdInput">SteamID64（17 位）</label>
+            <input id="steamIdInput" type="text" placeholder="例如：7656119xxxxxxxxxx" autocomplete="off" />
+          </div>
+          <div class="api-direct-action">
+            <button id="loadByApiKeyBtn" class="secondary">通过 API Key 直接读取库存</button>
+          </div>
+        </div>
         <p class="muted small">不会提交到第三方，仅随本工具请求发送到你当前部署的后端。<a href="https://steamcommunity.com/dev/apikey" target="_blank" rel="noreferrer noopener">如何获取我的 API Key？</a></p>
       </div>
       <pre id="authStatus">未登录</pre>

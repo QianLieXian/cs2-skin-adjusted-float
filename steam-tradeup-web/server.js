@@ -328,11 +328,6 @@ function normalizeMarketHashName(raw = '') {
     .trim();
 }
 
-function detectExterior(raw = '') {
-  const match = String(raw ?? '').match(/\((Factory New|Minimal Wear|Field-Tested|Well-Worn|Battle-Scarred)\)\s*$/i);
-  return match?.[1] ?? null;
-}
-
 function parseFloatFromInspectResponse(payload) {
   const candidates = [
     payload?.iteminfo?.floatvalue,
@@ -348,14 +343,6 @@ function parseFloatFromInspectResponse(payload) {
   }
   return null;
 }
-
-const EXTERIOR_MID_FLOAT = {
-  'Factory New': 0.035,
-  'Minimal Wear': 0.11,
-  'Field-Tested': 0.23,
-  'Well-Worn': 0.4,
-  'Battle-Scarred': 0.7
-};
 
 function buildSkinDictionary() {
   try {
@@ -381,19 +368,6 @@ function buildSkinDictionary() {
 }
 
 const skinDictionary = buildSkinDictionary();
-
-function estimateFloatFromExterior(rawName, skinMeta) {
-  const exterior = detectExterior(rawName);
-  if (!exterior) return null;
-  const baseMid = EXTERIOR_MID_FLOAT[exterior];
-  if (typeof baseMid !== 'number') return null;
-  if (!skinMeta) return baseMid;
-  const min = Number(skinMeta.minFloat ?? 0);
-  const max = Number(skinMeta.maxFloat ?? 1);
-  if (!Number.isFinite(min) || !Number.isFinite(max) || max <= min) return baseMid;
-  const scaled = min + (max - min) * baseMid;
-  return Math.max(min, Math.min(max, Number(scaled.toFixed(16))));
-}
 
 async function resolveFloatFromInspectLink(item = {}) {
   if (typeof item.floatValue === 'number') return item.floatValue;
@@ -438,14 +412,9 @@ function enrichInventoryItem(item = {}) {
   const skinMeta = skinDictionary.get(normalizedName.toLowerCase()) ?? null;
   const isSouvenir = /^Souvenir\s+/i.test(originalName);
   const isStatTrak = /^StatTrak™\s*/i.test(originalName);
-  const estimatedFloat = typeof item.floatValue === 'number' ? null : estimateFloatFromExterior(originalName, skinMeta);
   const hasExactFloat = typeof item.floatValue === 'number';
-  const floatValue = hasExactFloat ? item.floatValue : estimatedFloat;
-  const floatSource = hasExactFloat
-    ? 'api'
-    : typeof estimatedFloat === 'number'
-      ? 'estimated_from_exterior'
-      : 'missing';
+  const floatValue = hasExactFloat ? item.floatValue : null;
+  const floatSource = hasExactFloat ? 'api' : 'missing';
   return {
     ...item,
     marketHashName: normalizedName || originalName,
@@ -483,6 +452,14 @@ async function withInventoryMeta(result = {}) {
     exactFloatCount,
     estimatedFloatCount
   };
+}
+
+async function buildInventoryResponse(rawResult, note) {
+  return await withInventoryMeta({
+    ...rawResult,
+    inspectApi: `${CSFLOAT_INSPECT_API}/?url=<inspect_link>`,
+    note
+  });
 }
 
 
@@ -1508,21 +1485,19 @@ app.get('/api/inventory', requireAuth, async (req, res) => {
       try {
         const econServiceResult = await fetchInventoryFromEconService(req.user.steamId, apiKey);
         if (econServiceResult.total > communityResult.total) {
-          return res.json(await withInventoryMeta({
-            ...econServiceResult,
-            inspectApi: `${CSFLOAT_INSPECT_API}/?url=<inspect_link>`,
-            note: '库存使用 IEconService 结果（数量高于社区库存），通常可覆盖更多冷却/限制物品。'
-          }));
+          return res.json(await buildInventoryResponse(
+            econServiceResult,
+            '库存使用 IEconService 结果（数量高于社区库存），通常可覆盖更多冷却/限制物品。'
+          ));
         }
       } catch (econServiceCompareError) {
         pushError('econ_service_compare', econServiceCompareError);
       }
     }
-    return res.json(await withInventoryMeta({
-      ...communityResult,
-      inspectApi: `${CSFLOAT_INSPECT_API}/?url=<inspect_link>`,
-      note: '库存优先来自 steamcommunity inventory 接口；官方 Web API 在 CS2 场景经常返回空结果。'
-    }));
+    return res.json(await buildInventoryResponse(
+      communityResult,
+      '库存优先来自 steamcommunity inventory 接口；官方 Web API 在 CS2 场景经常返回空结果。'
+    ));
   } catch (error) {
     pushError('community', error);
     const apiKey = resolveSteamApiKey(req);
@@ -1530,11 +1505,10 @@ app.get('/api/inventory', requireAuth, async (req, res) => {
       try {
         const econServiceResult = await fetchInventoryFromEconService(req.user.steamId, apiKey);
         if (econServiceResult.total > 0) {
-          return res.json(await withInventoryMeta({
-            ...econServiceResult,
-            inspectApi: `${CSFLOAT_INSPECT_API}/?url=<inspect_link>`,
-            note: '主链路失败后，已回退到 IEconService/GetInventoryItemsWithDescriptions。'
-          }));
+          return res.json(await buildInventoryResponse(
+            econServiceResult,
+            '主链路失败后，已回退到 IEconService/GetInventoryItemsWithDescriptions。'
+          ));
         }
         pushError('econ_service_empty', new Error('IEconService returned 0 items.'));
       } catch (econServiceError) {
@@ -1555,14 +1529,12 @@ app.get('/api/inventory', requireAuth, async (req, res) => {
           }));
         const resultItems = normalizeInventory(normalized);
         if (resultItems.length > 0) {
-          return res.json(await withInventoryMeta({
+          return res.json(await buildInventoryResponse({
             source: 'auth_legacy_api',
             total: resultItems.length,
             cooldownCount: 0,
-            items: resultItems,
-            inspectApi: `${CSFLOAT_INSPECT_API}/?url=<inspect_link>`,
-            note: '回退到 Steam Web API（IEconItems_730）读取。若仍为 0，通常不是 key 问题而是该接口对 CS2 数据不完整。'
-          }));
+            items: resultItems
+          }, '回退到 Steam Web API（IEconItems_730）读取。若仍为 0，通常不是 key 问题而是该接口对 CS2 数据不完整。'));
         }
         pushError('legacy_econitems_empty', new Error('IEconItems_730 returned 0 items.'));
       } catch (legacyError) {
@@ -1583,6 +1555,33 @@ app.get('/api/inventory', requireAuth, async (req, res) => {
       cooldownCount: 0,
       items: []
     }));
+  }
+});
+
+app.get('/api/inventory/by-api-key', async (req, res) => {
+  try {
+    const steamId = String(req.query.steamId ?? '').trim();
+    const apiKey = resolveSteamApiKey(req);
+    if (!steamId || !/^\d{17}$/.test(steamId)) {
+      return res.status(400).json({ error: 'Missing or invalid steamId (expects 17-digit SteamID64).' });
+    }
+    if (!apiKey) {
+      return res.status(400).json({ error: 'Missing Steam Web API Key. Provide it via query apiKey or x-steam-api-key.' });
+    }
+    const econServiceResult = await fetchInventoryFromEconService(steamId, apiKey);
+    if (econServiceResult.total <= 0) {
+      return res.status(404).json(await buildInventoryResponse(econServiceResult, 'API Key 读取完成，但返回 0 件。请检查 Key 权限、SteamID、库存可见性与网络出口。'));
+    }
+    return res.json(await buildInventoryResponse(econServiceResult, '通过 Steam Web API Key 直接读取库存（无需 Steam 登录会话）。'));
+  } catch (error) {
+    const statusCode = Number(error?.response?.status ?? 0);
+    const details = statusCode === 403
+      ? `Steam API 拒绝访问（403）：请确认 API Key 有效且域名绑定正确。${error.message}`
+      : error.message;
+    return res.status(500).json({
+      error: 'Failed to fetch inventory by API key',
+      details
+    });
   }
 });
 

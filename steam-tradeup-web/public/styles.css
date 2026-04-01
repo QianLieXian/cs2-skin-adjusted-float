@@ -14,6 +14,9 @@ button + button { margin-left: 8px; }
 .trade-url-box { margin: 12px 0; }
 .trade-url-box button { margin-top: 8px; }
 .api-key-box { margin: 12px 0; }
+.api-direct-grid { margin-top: 10px; }
+.api-direct-action { display: flex; align-items: end; }
+.api-direct-action button { width: 100%; }
 .small { font-size: 13px; }
 .api-key-box a { color: #8eb0ff; }
 pre { background: #0f1528; padding: 10px; border-radius: 8px; white-space: pre-wrap; }
