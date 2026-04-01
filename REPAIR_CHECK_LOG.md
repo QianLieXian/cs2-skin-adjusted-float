@@ -1,5 +1,38 @@
 # 修复检查日志（2026-04-01）
 
+## 2026-04-01（再修：API Key + 交易链接读取“卡住/float 缺失/代理反复 ECONNRESET”）
+
+### 问题现象
+- 点击“通过 API Key 直接读取库存”或“交易链接读取公开库存”时体感很慢，日志反复出现：
+  - `Request via proxy failed (ECONNRESET), retry direct connection: https://api.csfloat.com`
+- 接口最终虽然 200，但耗时很长（例如 80s+）。
+- 前端仍显示较多 `float 缺失`。
+
+### 根因判断
+1. **代理失败会在每个请求重复触发**：当前逻辑是“每次先走代理，失败后再直连”。当代理到 `api.csfloat.com` 持续不稳定时，会给每个 inspect 请求都额外增加一次失败重试成本。
+2. **缺少同批次 inspect 去重**：同一次库存读取中，如果 inspect link 重复，会重复请求 CSFloat，造成不必要的等待。
+3. **`/api/inventory/public` 未利用 `apiKey` 做数量补强**：即使前端传了 `apiKey`，公开库存接口也只走社区库存链路，不能借助 IEconService 在数量上做纠偏。
+
+### 本轮修复
+1. **新增“代理失败主机直连旁路”**
+   - 当某个主机（如 `api.csfloat.com`）首次发生 `ECONNRESET/ETIMEDOUT/...` 后，记录该主机进入旁路名单。
+   - 后续同主机请求直接走直连，不再每次“先失败一次再重试”。
+   - 仅首个旁路事件打印一次说明日志，避免刷屏。
+
+2. **同批次 inspect 浮点请求去重**
+   - 在 `resolveMissingFloats` 内新增 `inspectFloatCache`（按 inspectLink 缓存本次结果）。
+   - 同一批读取中重复 inspectLink 直接复用结果，减少 CSFloat 请求数与耗时。
+
+3. **公开库存接口接入 API Key 对比增强**
+   - `/api/inventory/public` 现在会在传入 `apiKey` 时，额外尝试 `IEconService`。
+   - 若 `IEconService.total > community.total`，自动切换到 API 结果并返回说明 `note`。
+   - 目标是降低“公开库存链路结果偏少导致 float 缺失更多”的概率。
+
+### 结果
+- 代理不稳定时不会再对同一目标主机重复付出“代理失败重试”开销，库存读取响应会更稳。
+- 同批次重复 inspect 请求显著减少，降低长尾耗时。
+- 交易链接读取在提供 API Key 时可自动做数量纠偏，减少“看起来读到了但缺项多”的问题。
+
 ## 2026-04-01（精确 float 强制模式 + API Key 直连读取按钮）
 
 ### 问题现象

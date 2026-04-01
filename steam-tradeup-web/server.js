@@ -319,6 +319,31 @@ if (proxyUrl) {
 }
 
 const http = axios.create(axiosConfig);
+const proxyBypassHosts = new Set();
+const proxyBypassNoticeHosts = new Set();
+
+function extractHostnameFromUrl(rawUrl) {
+  try {
+    return new URL(String(rawUrl ?? '')).hostname;
+  } catch {
+    return '';
+  }
+}
+
+function shouldBypassProxy(url) {
+  const host = extractHostnameFromUrl(url);
+  if (!host) return false;
+  return proxyBypassHosts.has(host);
+}
+
+function markProxyBypass(url, code) {
+  const host = extractHostnameFromUrl(url);
+  if (!host) return;
+  proxyBypassHosts.add(host);
+  if (proxyBypassNoticeHosts.has(host)) return;
+  proxyBypassNoticeHosts.add(host);
+  console.warn(`[WARN] Proxy unstable for ${host} (${code}), subsequent requests will use direct connection.`);
+}
 
 function normalizeMarketHashName(raw = '') {
   return String(raw ?? '')
@@ -384,6 +409,7 @@ async function resolveFloatFromInspectLink(item = {}) {
 }
 
 async function resolveMissingFloats(items = []) {
+  const inspectFloatCache = new Map();
   const queue = items
     .map((item, index) => ({ item, index }))
     .filter(({ item }) => typeof item.floatValue !== 'number' && item.inspectLink);
@@ -392,7 +418,20 @@ async function resolveMissingFloats(items = []) {
     while (queue.length > 0) {
       const current = queue.pop();
       if (!current) break;
+      const cacheKey = String(current.item.inspectLink);
+      if (inspectFloatCache.has(cacheKey)) {
+        const cachedFloat = inspectFloatCache.get(cacheKey);
+        if (typeof cachedFloat === 'number') {
+          items[current.index] = {
+            ...items[current.index],
+            floatValue: cachedFloat,
+            floatSource: 'csfloat_inspect'
+          };
+        }
+        continue;
+      }
       const exactFloat = await resolveFloatFromInspectLink(current.item);
+      inspectFloatCache.set(cacheKey, exactFloat);
       if (typeof exactFloat === 'number') {
         items[current.index] = {
           ...items[current.index],
@@ -464,6 +503,13 @@ async function buildInventoryResponse(rawResult, note) {
 
 
 async function getWithDirectFallback(url, config = {}) {
+  if (shouldBypassProxy(url)) {
+    return axios.get(url, {
+      ...config,
+      timeout: config.timeout ?? axiosConfig.timeout,
+      proxy: false
+    });
+  }
   try {
     return await http.get(url, config);
   } catch (error) {
@@ -471,15 +517,23 @@ async function getWithDirectFallback(url, config = {}) {
     const isConnectionTimeout = ['ETIMEDOUT', 'ECONNRESET', 'ECONNREFUSED', 'EHOSTUNREACH', 'ENETUNREACH'].includes(code);
     if (!proxyUrl || !isConnectionTimeout) throw error;
     console.warn(`[WARN] Request via proxy failed (${code}), retry direct connection: ${url}`);
+    markProxyBypass(url, code);
     return axios.get(url, {
       ...config,
-      timeout: axiosConfig.timeout,
+      timeout: config.timeout ?? axiosConfig.timeout,
       proxy: false
     });
   }
 }
 
 async function postWithDirectFallback(url, data, config = {}) {
+  if (shouldBypassProxy(url)) {
+    return axios.post(url, data, {
+      ...config,
+      timeout: config.timeout ?? axiosConfig.timeout,
+      proxy: false
+    });
+  }
   try {
     return await http.post(url, data, config);
   } catch (error) {
@@ -487,9 +541,10 @@ async function postWithDirectFallback(url, data, config = {}) {
     const isConnectionTimeout = ['ETIMEDOUT', 'ECONNRESET', 'ECONNREFUSED', 'EHOSTUNREACH', 'ENETUNREACH'].includes(code);
     if (!proxyUrl || !isConnectionTimeout) throw error;
     console.warn(`[WARN] Request via proxy failed (${code}), retry direct connection: ${url}`);
+    markProxyBypass(url, code);
     return axios.post(url, data, {
       ...config,
-      timeout: axiosConfig.timeout,
+      timeout: config.timeout ?? axiosConfig.timeout,
       proxy: false
     });
   }
@@ -1664,10 +1719,34 @@ async function fetchPublicInventoryByTradeUrl(tradeUrl) {
 app.get('/api/inventory/public', async (req, res) => {
   try {
     const tradeUrl = String(req.query.tradeUrl ?? '');
+    const apiKey = resolveSteamApiKey(req);
     if (!tradeUrl) {
       return res.status(400).json({ error: 'Missing tradeUrl query parameter' });
     }
-    const result = await fetchPublicInventoryByTradeUrl(tradeUrl);
+    const parsed = parseTradeUrl(tradeUrl);
+    if (!parsed) {
+      return res.status(400).json({ error: 'Invalid tradeUrl query parameter' });
+    }
+    let result = await fetchPublicInventoryByTradeUrl(tradeUrl);
+    if (apiKey) {
+      try {
+        const econServiceResult = await fetchInventoryFromEconService(parsed.steamId, apiKey);
+        if (econServiceResult.total > result.total) {
+          result = await withInventoryMeta({
+            ...econServiceResult,
+            source: 'trade_url_econ_service_api',
+            steamId: parsed.steamId,
+            token: parsed.token ?? null,
+            note: '检测到 API Key 且 IEconService 数量更高，已自动切换到 API 结果以覆盖更多受限库存。'
+          });
+        }
+      } catch (compareError) {
+        console.warn('[WARN] /api/inventory/public compare by apiKey failed', {
+          steamId: parsed.steamId,
+          message: compareError?.message ?? 'unknown'
+        });
+      }
+    }
     res.json(result);
   } catch (error) {
     const status = error.code === 400 ? 400 : 500;
