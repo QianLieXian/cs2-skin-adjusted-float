@@ -1,5 +1,41 @@
 # 修复检查日志（2026-04-01）
 
+## 2026-04-01（再修：float 全缺失，CSFloat 域名切换导致请求全失败）
+
+### 问题现象
+- 你当前统计显示：`精确 float = 0`、`估算 float = 0`、`float 缺失 = 58`，即“全缺失”。
+- 库存条目本身已读到（总数/可炼金/字典命中都有值），说明主要失败点在“inspect -> float 补全链路”而非库存读取。
+
+### 根因判断
+1. **默认 inspect API 域名过旧**
+   - 代码默认使用 `https://api.csfloat.com`。
+   - 该域名在部分环境已无法解析（DNS `ENOTFOUND`），导致 `GET /?url=...` 与 `POST /bulk` 全量失败。
+2. **缺少多端点自动回退**
+   - 旧逻辑只有单一 `CSFLOAT_INSPECT_API`，端点失效时会直接导致全量 float 缺失。
+
+### 本轮修复
+1. **默认域名切换**
+   - `CSFLOAT_INSPECT_API` 默认值由 `https://api.csfloat.com` 改为 `https://api.csgofloat.com`。
+
+2. **新增 inspect API 候选链路**
+   - 新增 `CSFLOAT_INSPECT_API_FALLBACKS`（逗号分隔）环境变量。
+   - 运行时自动构建候选列表并去重，默认内置：
+     - `CSFLOAT_INSPECT_API`
+     - `https://api.csgofloat.com`
+     - `https://api.csfloat.com`
+
+3. **单条与批量请求都支持逐端点回退**
+   - `GET /?url=...`（单条）失败后自动尝试下一个候选端点。
+   - `GET /?s|m + a + d`（参数模式）同样回退。
+   - `POST /bulk` 按候选端点依次尝试，避免单域名异常时整批落空。
+
+4. **接口响应增加可观测性**
+   - 返回中新增 `inspectApiCandidates`，前端/日志可直接看到当前后端采用的 inspect 端点优先级，便于后续排障。
+
+### 结果
+- 当某个 CSFloat 域名不可解析或不可用时，不再导致“全量 float 缺失”。
+- float 补全链路从“单点依赖”升级为“多端点容灾”，可显著降低再次出现 `exactFloatCount = 0` 的概率。
+
 ## 2026-04-01（再修：已登录库存报 `URI malformed` 导致整链路误判失败）
 
 ### 问题现象
