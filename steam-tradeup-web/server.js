@@ -225,9 +225,11 @@ import axios from 'axios';
 import { ProxyAgent } from 'proxy-agent';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import fs from 'node:fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const COLLECTION_DATA_PATH = path.join(__dirname, 'public', 'data', 'collection_skins.json');
 
 const {
   PORT = 5173,
@@ -317,6 +319,111 @@ if (proxyUrl) {
 }
 
 const http = axios.create(axiosConfig);
+
+function normalizeMarketHashName(raw = '') {
+  return String(raw ?? '')
+    .replace(/^StatTrak™\s*/i, '')
+    .replace(/^Souvenir\s+/i, '')
+    .replace(/\s+\((Factory New|Minimal Wear|Field-Tested|Well-Worn|Battle-Scarred)\)$/i, '')
+    .trim();
+}
+
+function detectExterior(raw = '') {
+  const match = String(raw ?? '').match(/\((Factory New|Minimal Wear|Field-Tested|Well-Worn|Battle-Scarred)\)\s*$/i);
+  return match?.[1] ?? null;
+}
+
+const EXTERIOR_MID_FLOAT = {
+  'Factory New': 0.035,
+  'Minimal Wear': 0.11,
+  'Field-Tested': 0.23,
+  'Well-Worn': 0.4,
+  'Battle-Scarred': 0.7
+};
+
+function buildSkinDictionary() {
+  try {
+    const raw = fs.readFileSync(COLLECTION_DATA_PATH, 'utf-8');
+    const parsed = JSON.parse(raw);
+    const map = new Map();
+    for (const skin of parsed?.skins ?? []) {
+      const key = normalizeMarketHashName(skin.name).toLowerCase();
+      if (!key) continue;
+      map.set(key, {
+        name: skin.name,
+        rarity: skin.rarity,
+        collections: skin.collections ?? [],
+        minFloat: Number(skin.minFloat ?? 0),
+        maxFloat: Number(skin.maxFloat ?? 1)
+      });
+    }
+    return map;
+  } catch (error) {
+    console.error('[ERROR] Failed to load local skin dictionary', error);
+    return new Map();
+  }
+}
+
+const skinDictionary = buildSkinDictionary();
+
+function estimateFloatFromExterior(rawName, skinMeta) {
+  const exterior = detectExterior(rawName);
+  if (!exterior) return null;
+  const baseMid = EXTERIOR_MID_FLOAT[exterior];
+  if (typeof baseMid !== 'number') return null;
+  if (!skinMeta) return baseMid;
+  const min = Number(skinMeta.minFloat ?? 0);
+  const max = Number(skinMeta.maxFloat ?? 1);
+  if (!Number.isFinite(min) || !Number.isFinite(max) || max <= min) return baseMid;
+  const scaled = min + (max - min) * baseMid;
+  return Math.max(min, Math.min(max, Number(scaled.toFixed(6))));
+}
+
+function enrichInventoryItem(item = {}) {
+  const originalName = String(item.marketHashName ?? '').trim();
+  const normalizedName = normalizeMarketHashName(originalName);
+  const skinMeta = skinDictionary.get(normalizedName.toLowerCase()) ?? null;
+  const isSouvenir = /^Souvenir\s+/i.test(originalName);
+  const isStatTrak = /^StatTrak™\s*/i.test(originalName);
+  const estimatedFloat = typeof item.floatValue === 'number' ? null : estimateFloatFromExterior(originalName, skinMeta);
+  const floatValue = typeof item.floatValue === 'number' ? item.floatValue : estimatedFloat;
+  const floatSource = typeof item.floatValue === 'number'
+    ? 'api'
+    : typeof estimatedFloat === 'number'
+      ? 'estimated_from_exterior'
+      : 'missing';
+  return {
+    ...item,
+    marketHashName: normalizedName || originalName,
+    originalMarketHashName: originalName || normalizedName,
+    floatValue,
+    floatSource,
+    isSouvenir,
+    isStatTrak,
+    collection: skinMeta?.collections?.[0] ?? null,
+    rarity: skinMeta?.rarity ?? null,
+    eligibleForTradeup: !isSouvenir
+  };
+}
+
+function enrichInventory(items = []) {
+  return items.map(enrichInventoryItem);
+}
+
+function withInventoryMeta(result = {}) {
+  const enrichedItems = enrichInventory(result.items ?? []);
+  const materialCount = enrichedItems.filter((it) => it.eligibleForTradeup).length;
+  const missingFloatCount = enrichedItems.filter((it) => typeof it.floatValue !== 'number').length;
+  const dictionaryMatchedCount = enrichedItems.filter((it) => it.collection && it.rarity).length;
+  return {
+    ...result,
+    total: enrichedItems.length,
+    items: enrichedItems,
+    materialCount,
+    missingFloatCount,
+    dictionaryMatchedCount
+  };
+}
 
 
 async function getWithDirectFallback(url, config = {}) {
@@ -1299,11 +1406,11 @@ app.get('/api/inventory', requireAuth, async (req, res) => {
 
   try {
     const communityResult = await fetchInventoryFromCommunity(req.user.steamId);
-    return res.json({
+    return res.json(withInventoryMeta({
       ...communityResult,
       inspectApi: `${CSFLOAT_INSPECT_API}/?url=<inspect_link>`,
       note: '库存优先来自 steamcommunity inventory 接口；官方 Web API 在 CS2 场景经常返回空结果。'
-    });
+    }));
   } catch (error) {
     pushError('community', error);
     const apiKey = resolveSteamApiKey(req);
@@ -1311,11 +1418,11 @@ app.get('/api/inventory', requireAuth, async (req, res) => {
       try {
         const econServiceResult = await fetchInventoryFromEconService(req.user.steamId, apiKey);
         if (econServiceResult.total > 0) {
-          return res.json({
+          return res.json(withInventoryMeta({
             ...econServiceResult,
             inspectApi: `${CSFLOAT_INSPECT_API}/?url=<inspect_link>`,
             note: '主链路失败后，已回退到 IEconService/GetInventoryItemsWithDescriptions。'
-          });
+          }));
         }
         pushError('econ_service_empty', new Error('IEconService returned 0 items.'));
       } catch (econServiceError) {
@@ -1337,14 +1444,14 @@ app.get('/api/inventory', requireAuth, async (req, res) => {
           }));
         const resultItems = normalizeInventory(normalized);
         if (resultItems.length > 0) {
-          return res.json({
+          return res.json(withInventoryMeta({
             source: 'auth_legacy_api',
             total: resultItems.length,
             cooldownCount: 0,
             items: resultItems,
             inspectApi: `${CSFLOAT_INSPECT_API}/?url=<inspect_link>`,
             note: '回退到 Steam Web API（IEconItems_730）读取。若仍为 0，通常不是 key 问题而是该接口对 CS2 数据不完整。'
-          });
+          }));
         }
         pushError('legacy_econitems_empty', new Error('IEconItems_730 returned 0 items.'));
       } catch (legacyError) {
@@ -1356,7 +1463,7 @@ app.get('/api/inventory', requireAuth, async (req, res) => {
     const hints = statusCode === 403 || statusCode === 400
       ? 'Steam 社区库存接口拒绝访问：请确认该账号库存公开可见，或改用“交易链接读取库存”。如果你确认库存公开且有物品，请检查代理出口 IP 是否被 Steam 风控。'
       : '请检查网络/代理设置，确认服务器能访问 steamcommunity.com。';
-    return res.status(500).json({
+    return res.status(500).json(withInventoryMeta({
       error: 'Failed to fetch inventory',
       details: `${error.message}。${hints}`,
       fallbackErrors: errors,
@@ -1364,7 +1471,7 @@ app.get('/api/inventory', requireAuth, async (req, res) => {
       total: 0,
       cooldownCount: 0,
       items: []
-    });
+    }));
   }
 });
 
@@ -1434,14 +1541,14 @@ async function fetchPublicInventoryByTradeUrl(tradeUrl) {
     }
   }
 
-  return {
+  return withInventoryMeta({
     source: 'trade_url',
     steamId: parsed.steamId,
     token: parsed.token ?? null,
     total: items.length,
     cooldownCount: items.filter((it) => it.cooldown).length,
     items
-  };
+  });
 }
 
 app.get('/api/inventory/public', async (req, res) => {
