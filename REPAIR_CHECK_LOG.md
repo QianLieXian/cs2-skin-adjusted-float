@@ -163,3 +163,43 @@
 ### 结果
 - 即使历史 `.env` 里残留 localhost 配置，只要用户当前是通过公网域名访问，也会优先使用公网域名作为 OpenID 回调。
 - 可直接规避“授权后跳回 localhost”的高频故障路径。
+
+---
+
+## 2026-04-01（再次修复：授权页仍显示 `localhost`）
+
+### 问题现象
+- 用户从公网域名进入页面，但点击 Steam 登录后，Steam 授权页仍提示“使用您的 Steam 帐户登录到 localhost”。
+- 授权后回调地址仍可见 `http://localhost:5173/api/auth/steam/return?...`。
+
+### 根因补充
+1. **部分面板/反向代理不会稳定透传 `X-Forwarded-Host`**
+   - 旧逻辑主要依赖 `x-forwarded-host` + `host` 推断外网域名。
+   - 当这两个头都落成 localhost 时，即使用户来自公网，OpenID `realm/returnURL` 仍可能被构造成 localhost。
+
+2. **登录发起阶段缺少“前端真实 origin”兜底**
+   - 旧流程没有显式把浏览器当前站点 origin 传给后端。
+   - 一旦代理头不完整，后端就缺少可靠来源。
+
+### 本轮修复
+1. **前端登录请求显式携带 origin**
+   - `Steam 登录` 按钮改为跳转 `/api/auth/steam?origin=<window.location.origin>`。
+   - 给后端提供稳定、直接的公网来源信息。
+
+2. **后端新增客户端来源解析链路 `resolveClientOrigin()`**
+   - 解析顺序：
+     1) query `origin`（仅接受非 localhost）  
+     2) session 中持久化的 `steamClientOrigin`  
+     3) `Forwarded` 标准头（`proto`/`host`）  
+     4) `x-forwarded-host` / `x-original-host` / `x-real-host` + 多种 proto 头  
+     5) `Referer` / `Origin`
+   - 若命中公网来源，优先用于构建 OpenID `realm/returnURL`。
+
+3. **跨回调持久化来源**
+   - 在 `/api/auth/steam` 发起时写入 `req.session.steamClientOrigin`。
+   - 在 `/api/auth/steam/return` 校验时复用同一来源，防止中间跳转导致 host 信息丢失。
+   - 登录成功后清理该 session 字段。
+
+### 结果
+- 即使反向代理头不完整，只要用户从公网页面点击登录，OpenID 参数也会优先采用公网 origin。
+- 可继续压缩“授权页显示 localhost / 回调落 localhost”的残余故障概率。

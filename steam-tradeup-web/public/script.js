@@ -408,7 +408,9 @@ async function loadByTradeUrl() {
 }
 
 ui.steamLoginBtn.addEventListener('click', () => {
-  window.location.href = API.steamLogin;
+  const loginUrl = new URL(API.steamLogin, window.location.origin);
+  loginUrl.searchParams.set('origin', window.location.origin);
+  window.location.href = loginUrl.toString();
 });
 ui.loadDemoBtn.addEventListener('click', loadDemoInventory);
 ui.loadByTradeUrlBtn.addEventListener('click', loadByTradeUrl);
