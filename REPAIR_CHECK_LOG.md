@@ -43,3 +43,41 @@
 2. 若只用端口，确保 `STEAM_PROXY_PORT=7897` 且 `STEAM_PROXY_HOST=127.0.0.1`。
 3. 非必要不要开启 `STEAM_USE_SYSTEM_PROXY=true`。
 4. 启动日志确认是否出现：`Global proxy enabled ... 7897`。
+
+---
+
+## 2026-04-01（OpenID 断言校验失败 + 交易链接 400）
+
+### 问题现象
+- 登录报错：`InternalOpenIDError: Failed to verify assertion`。
+- 读取交易链接报错：`Request failed with status code 400`。
+
+### 本轮排查与修复
+1. **修正 Steam OpenID 默认 Provider 地址**
+   - 从 `https://steamcommunity.com/openid` 调整为 `https://steamcommunity.com/openid/login`，避免 Provider 端点不完整导致断言校验失败。
+
+2. **增强 BASE_URL 处理，避免 realm / returnURL 不一致**
+   - 新增 `normalizeBaseUrl()`，统一清理尾部 `/`、query、hash。
+   - 默认 `realm` 与 `returnURL` 由规范化后的 BASE_URL 计算。
+
+3. **按请求动态构建 OpenID 回调参数（兼容反向代理）**
+   - 新增 `resolveRequestBaseUrl()` + `buildSteamAuthOptions()`。
+   - 在 `/api/auth/steam` 与 `/api/auth/steam/return` 两个路由中都传入动态 `realm` / `returnURL`。
+   - 启用 `app.set('trust proxy', true)`，在 Nginx/面板代理后可正确识别 `x-forwarded-proto/host`。
+
+4. **提升交易链接容错**
+   - `parseTradeUrl()` 增加 URL 解码与协议补全（支持用户粘贴不带 `https://` 的链接）。
+
+5. **优化 Steam 库存 400 错误提示**
+   - 当 Steam inventory API 返回 400 时，后端转换为更明确的业务提示：
+     - 交易链接可能无效；或
+     - 目标账号库存非公开。
+
+### 下次排障建议
+- 若仍遇到 OpenID assertion 失败，优先核对：
+  1. 反向代理是否透传 `Host` 和 `X-Forwarded-Proto`。
+  2. 实际访问域名是否与 Steam 开始登录时域名一致（中途换域名会导致校验失败）。
+  3. `BASE_URL` 是否与外网访问地址一致（仅在你显式设置 `STEAM_REALM/STEAM_RETURN_URL` 时强依赖）。
+- 若交易链接仍 400：
+  1. 检查链接是否来自 `steamcommunity.com/tradeoffer/new/...`。
+  2. 检查对方库存与个人资料是否公开。
