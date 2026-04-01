@@ -294,23 +294,90 @@ function resolveRequestBaseUrl(req) {
   return `${protocol}://${host}`;
 }
 
-function buildSteamAuthOptions(req) {
+function buildSteamAuthOptions(req, { persistForCallback = false } = {}) {
   const requestBaseUrl = resolveRequestBaseUrl(req);
+  const runtimeRealm = `${requestBaseUrl}/`;
+  const runtimeReturnUrl = `${requestBaseUrl}/api/auth/steam/return`;
+  const envRealm = STEAM_REALM || defaultSteamRealm;
+  const envReturnUrl = STEAM_RETURN_URL || defaultSteamReturnUrl;
+
+  const hasExplicitSteamAuthUrl = Boolean(process.env.STEAM_REALM || process.env.STEAM_RETURN_URL);
+  let realm = hasExplicitSteamAuthUrl ? envRealm : runtimeRealm;
+  let returnURL = hasExplicitSteamAuthUrl ? envReturnUrl : runtimeReturnUrl;
+
+  if (persistForCallback && req.session) {
+    req.session.steamAuth = {
+      realm,
+      returnURL,
+      createdAt: Date.now()
+    };
+  } else if (!persistForCallback && req.session?.steamAuth) {
+    realm = req.session.steamAuth.realm || realm;
+    returnURL = req.session.steamAuth.returnURL || returnURL;
+  }
+
   return {
     failureRedirect: '/',
-    realm: STEAM_REALM || `${requestBaseUrl}/`,
-    returnURL: STEAM_RETURN_URL || `${requestBaseUrl}/api/auth/steam/return`
+    realm,
+    returnURL
   };
 }
 
 app.get('/api/auth/steam', (req, res, next) => {
-  passport.authenticate('steam', buildSteamAuthOptions(req))(req, res, next);
+  const authOptions = buildSteamAuthOptions(req, { persistForCallback: true });
+  console.log('[INFO] Steam OpenID start', {
+    host: req.get('host'),
+    forwardedHost: req.headers['x-forwarded-host'] ?? null,
+    forwardedProto: req.headers['x-forwarded-proto'] ?? null,
+    realm: authOptions.realm,
+    returnURL: authOptions.returnURL
+  });
+  passport.authenticate('steam', authOptions)(req, res, next);
 });
 
 app.get('/api/auth/steam/return', (req, res, next) => {
-  passport.authenticate('steam', buildSteamAuthOptions(req))(req, res, next);
-}, (_req, res) => {
-  res.redirect('/');
+  const authOptions = buildSteamAuthOptions(req);
+  console.log('[INFO] Steam OpenID return', {
+    host: req.get('host'),
+    forwardedHost: req.headers['x-forwarded-host'] ?? null,
+    forwardedProto: req.headers['x-forwarded-proto'] ?? null,
+    realm: authOptions.realm,
+    returnURL: authOptions.returnURL,
+    openidReturnTo: req.query['openid.return_to'] ?? null,
+    openidClaimedId: req.query['openid.claimed_id'] ?? null,
+    openidMode: req.query['openid.mode'] ?? null
+  });
+
+  passport.authenticate('steam', authOptions, (error, user) => {
+    if (error) {
+      console.error('[ERROR] Steam OpenID callback failed', {
+        message: error.message,
+        stack: error.stack,
+        openidReturnTo: req.query['openid.return_to'] ?? null,
+        expectedReturnURL: authOptions.returnURL,
+        expectedRealm: authOptions.realm
+      });
+      return res.status(401).json({
+        error: 'Steam OpenID callback failed',
+        details: error.message,
+        expectedReturnURL: authOptions.returnURL,
+        expectedRealm: authOptions.realm,
+        openidReturnTo: req.query['openid.return_to'] ?? null
+      });
+    }
+    if (!user) {
+      console.warn('[WARN] Steam OpenID callback returned no user');
+      return res.redirect('/');
+    }
+    req.logIn(user, (loginError) => {
+      if (loginError) {
+        console.error('[ERROR] Failed to establish Steam session', loginError);
+        return next(loginError);
+      }
+      if (req.session?.steamAuth) delete req.session.steamAuth;
+      return res.redirect('/');
+    });
+  })(req, res, next);
 });
 
 app.get('/api/session', (req, res) => {
