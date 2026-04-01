@@ -10,6 +10,7 @@ const ui = {
   loadDemoBtn: document.getElementById('loadDemoBtn'),
   loadByTradeUrlBtn: document.getElementById('loadByTradeUrlBtn'),
   tradeUrlInput: document.getElementById('tradeUrlInput'),
+  steamApiKeyInput: document.getElementById('steamApiKeyInput'),
   calculateBtn: document.getElementById('calculateBtn'),
   targetFloat: document.getElementById('targetFloat'),
   collectionSelect: document.getElementById('collectionSelect'),
@@ -26,6 +27,7 @@ const ui = {
 let skinData = null;
 let inventoryItems = [];
 let skinsByName = new Map();
+const API_KEY_STORAGE_KEY = 'steam_web_api_key';
 
 const COLLECTION_ZH = {
   'The Harlequin Collection': '哈乐昆收藏品',
@@ -107,6 +109,11 @@ const WEAPON_ZH = {
 };
 
 const fmt16 = (n) => Number(n).toFixed(16);
+const sanitizeApiKey = (value) => String(value ?? '').trim();
+
+function getSteamApiKey() {
+  return sanitizeApiKey(ui.steamApiKeyInput?.value);
+}
 
 function parseTargetFloat(raw) {
   const v = raw.trim();
@@ -347,7 +354,11 @@ async function tryLoadSession() {
       return;
     }
     ui.authStatus.textContent = `已登录 Steam: ${session.user.personaName} (${session.user.steamId})`;
-    const invRes = await fetch(API.inventory);
+    const query = new URLSearchParams();
+    const apiKey = getSteamApiKey();
+    if (apiKey) query.set('apiKey', apiKey);
+    const inventoryUrl = query.size > 0 ? `${API.inventory}?${query.toString()}` : API.inventory;
+    const invRes = await fetch(inventoryUrl);
     const invResp = await invRes.json();
     inventoryItems = invResp.items || [];
     if (!invRes.ok) {
@@ -403,6 +414,8 @@ async function loadByTradeUrl() {
   ui.authStatus.textContent = '正在通过交易链接读取公开库存...';
   try {
     const query = new URLSearchParams({ tradeUrl });
+    const apiKey = getSteamApiKey();
+    if (apiKey) query.set('apiKey', apiKey);
     const resp = await fetch(`${API.publicInventory}?${query.toString()}`);
     const data = await resp.json();
     if (!resp.ok) throw new Error(data?.details || data?.error || '读取失败');
@@ -412,6 +425,19 @@ async function loadByTradeUrl() {
   } catch (error) {
     ui.authStatus.textContent = `交易链接读取失败：${error.message}`;
   }
+}
+
+function initApiKeyInput() {
+  const saved = window.localStorage.getItem(API_KEY_STORAGE_KEY);
+  if (saved) ui.steamApiKeyInput.value = saved;
+  ui.steamApiKeyInput.addEventListener('change', () => {
+    const value = sanitizeApiKey(ui.steamApiKeyInput.value);
+    if (value) {
+      window.localStorage.setItem(API_KEY_STORAGE_KEY, value);
+    } else {
+      window.localStorage.removeItem(API_KEY_STORAGE_KEY);
+    }
+  });
 }
 
 ui.steamLoginBtn.addEventListener('click', () => {
@@ -444,4 +470,5 @@ ui.calculateBtn.addEventListener('click', () => {
 });
 
 await loadSkinData();
+initApiKeyInput();
 await tryLoadSession();

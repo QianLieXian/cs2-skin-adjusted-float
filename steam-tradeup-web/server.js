@@ -256,7 +256,7 @@ if (!enforceCanonicalHost) {
 }
 
 if (!STEAM_API_KEY) {
-  console.warn('[WARN] Missing STEAM_API_KEY. Steam login/inventory API will not work.');
+  console.warn('[WARN] Missing STEAM_API_KEY in .env. You can still provide apiKey from frontend query/header per request.');
 }
 
 const axiosConfig = {
@@ -1032,22 +1032,30 @@ function normalizeInventory(items = []) {
   }));
 }
 
-async function fetchInventory(steamId) {
+async function fetchInventory(steamId, apiKey) {
   const url = `${STEAM_WEB_API}/IEconItems_730/GetPlayerItems/v1/`;
   const { data } = await http.get(url, {
     params: {
-      key: STEAM_API_KEY,
+      key: apiKey,
       steamid: steamId
     }
   });
   return data?.result?.items ?? [];
 }
 
+function resolveSteamApiKey(req) {
+  const keyFromQuery = String(req?.query?.apiKey ?? '').trim();
+  const keyFromHeader = String(req?.headers?.['x-steam-api-key'] ?? '').trim();
+  const key = keyFromQuery || keyFromHeader || STEAM_API_KEY;
+  return String(key ?? '').trim();
+}
+
 app.get('/api/inventory', requireAuth, async (req, res) => {
-  if (!STEAM_API_KEY) {
+  const apiKey = resolveSteamApiKey(req);
+  if (!apiKey) {
     return res.status(503).json({
       error: 'Missing STEAM_API_KEY',
-      details: 'Steam 登录可用，但读取库存需要在后端 .env 配置 STEAM_API_KEY。',
+      details: '请在后端 .env 配置 STEAM_API_KEY，或在前端填写 Steam Web API Key 后重试。',
       source: 'auth',
       total: 0,
       cooldownCount: 0,
@@ -1056,7 +1064,7 @@ app.get('/api/inventory', requireAuth, async (req, res) => {
   }
 
   try {
-    const items = await fetchInventory(req.user.steamId);
+    const items = await fetchInventory(req.user.steamId, apiKey);
     const normalized = items
       .filter((it) => it.inventory > 0)
       .slice(0, 10)

@@ -9,6 +9,7 @@
 - 根据库存材料平均磨损，计算最接近目标值的输出饰品候选。
 - 提供 Steam 登录与库存读取接口（需要配置 Steam API Key）。
 - 支持直接粘贴交易链接读取公开库存（无需 Steam 登录），并标记交易冷却/限制中的物品。
+- 前端支持直接填写 Steam Web API Key（会保存在浏览器 localStorage，并作为请求参数发送给当前后端）。
 
 ## 快速启动
 
@@ -29,10 +30,10 @@ npm run start
 
 ### 已登录但“库存 0 件 / source unknown”
 
-这通常是后端缺少 `STEAM_API_KEY` 导致的，不是你 Steam 账号没物品。
+这通常是后端未读取到可用的 `STEAM_API_KEY` 导致的，不是你 Steam 账号没物品。
 
 - 启动日志如果出现 `[WARN] Missing STEAM_API_KEY`，说明服务端无法调用 Steam 库存 API。
-- 新版本会在页面明确显示“库存读取失败：Steam 登录可用，但读取库存需要在后端 .env 配置 STEAM_API_KEY”。
+- 新版本会在页面明确显示“请在后端 .env 配置 STEAM_API_KEY，或在前端填写 Steam Web API Key 后重试”。
 
 请在 `steam-tradeup-web/.env` 增加：
 
@@ -46,7 +47,8 @@ STEAM_API_KEY=你的SteamWebAPIKey
 npm run start
 ```
 
-如果你暂时不想配置 API Key，可改用“通过交易链接读取库存”（要求库存公开）。
+如果你暂时不想改服务器 `.env`，也可先在网页里填写 API Key，再点击登录后读取库存。
+如果你不想登录，可改用“通过交易链接读取库存”（要求库存公开）。
 
 ### `InternalOpenIDError: Failed to verify assertion`
 
@@ -156,8 +158,8 @@ npm run generate:data
 
 ## 配置项放前端还是后端？
 
-- `STEAM_API_KEY` 必须放后端环境变量（`.env`），**不要放前端页面**。
-- 任何密钥（Steam Web API Key、第三方 token、代理账号密码）都不应出现在前端，因为前端代码和网络请求对用户是可见的。
-- 前端可以填写的是**非敏感参数**（例如交易链接、目标磨损值、筛选条件）。
+- **推荐**：把 `STEAM_API_KEY` 配在后端环境变量（`.env`），更适合长期部署。
+- **临时排障**：可以在前端输入框填写 API Key，页面会保存在浏览器 localStorage，并在请求时带给当前后端。
+- 任何密钥都不应暴露给不可信第三方页面；请只在你自己部署、可信来源的页面填写。
 
-结论：这个项目里，Steam API Key 只需要后端配置，前端没有必要也不应该提供输入框。
+结论：本项目同时支持“后端 `.env` 固定配置”和“前端临时输入”两种方式；生产环境优先后端配置。
