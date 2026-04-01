@@ -7,7 +7,9 @@ const API = {
 
 const ui = {
   steamLoginBtn: document.getElementById('steamLoginBtn'),
+  refreshInventoryBtn: document.getElementById('refreshInventoryBtn'),
   loadDemoBtn: document.getElementById('loadDemoBtn'),
+  exportLogsBtn: document.getElementById('exportLogsBtn'),
   loadByTradeUrlBtn: document.getElementById('loadByTradeUrlBtn'),
   tradeUrlInput: document.getElementById('tradeUrlInput'),
   steamApiKeyInput: document.getElementById('steamApiKeyInput'),
@@ -353,25 +355,31 @@ async function tryLoadSession() {
       ui.authStatus.textContent = '未登录';
       return;
     }
-    ui.authStatus.textContent = `已登录 Steam: ${session.user.personaName} (${session.user.steamId})`;
-    const query = new URLSearchParams();
-    const apiKey = getSteamApiKey();
-    if (apiKey) query.set('apiKey', apiKey);
-    const inventoryUrl = query.size > 0 ? `${API.inventory}?${query.toString()}` : API.inventory;
-    const invRes = await fetch(inventoryUrl);
-    const invResp = await invRes.json();
-    inventoryItems = invResp.items || [];
-    if (!invRes.ok) {
-      const reason = invResp?.details || invResp?.error || '读取失败';
-      ui.authStatus.textContent += `\n库存读取失败：${reason}`;
-      renderInventoryMeta(invResp);
-      return;
-    }
-    ui.authStatus.textContent += `\n已读取库存材料 ${inventoryItems.length} 件`;
-    renderInventoryMeta(invResp);
+    await loadAuthedInventory(session.user);
   } catch {
     ui.authStatus.textContent = '未部署后端，当前仅可使用示例库存。';
   }
+}
+
+async function loadAuthedInventory(user) {
+  const displayName = user?.personaName || 'Unknown';
+  const steamId = user?.steamId || '';
+  ui.authStatus.textContent = `已登录 Steam: ${displayName} (${steamId})\n正在刷新库存...`;
+  const query = new URLSearchParams();
+  const apiKey = getSteamApiKey();
+  if (apiKey) query.set('apiKey', apiKey);
+  const inventoryUrl = query.size > 0 ? `${API.inventory}?${query.toString()}` : API.inventory;
+  const invRes = await fetch(inventoryUrl);
+  const invResp = await invRes.json();
+  inventoryItems = invResp.items || [];
+  if (!invRes.ok) {
+    const reason = invResp?.details || invResp?.error || '读取失败';
+    ui.authStatus.textContent = `已登录 Steam: ${displayName} (${steamId})\n库存读取失败：${reason}`;
+    renderInventoryMeta(invResp);
+    return;
+  }
+  ui.authStatus.textContent = `已登录 Steam: ${displayName} (${steamId})\n已读取库存材料 ${inventoryItems.length} 件`;
+  renderInventoryMeta(invResp);
 }
 
 function renderInventoryMeta(meta) {
@@ -427,6 +435,44 @@ async function loadByTradeUrl() {
   }
 }
 
+async function refreshInventory() {
+  try {
+    const session = await fetch(API.session).then((r) => r.json());
+    if (!session?.loggedIn) {
+      ui.authStatus.textContent = '请先登录 Steam，再刷新库存。';
+      return;
+    }
+    await loadAuthedInventory(session.user);
+  } catch (error) {
+    ui.authStatus.textContent = `刷新库存失败：${error.message}`;
+  }
+}
+
+async function exportServerLogs() {
+  ui.authStatus.textContent = '正在导出后端日志...';
+  try {
+    const response = await fetch('/api/logs/export');
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      throw new Error(payload?.details || payload?.error || '导出失败');
+    }
+    const content = await response.text();
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const href = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    anchor.href = href;
+    anchor.download = `steam-tradeup-server-logs-${stamp}.log`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(href);
+    ui.authStatus.textContent = '日志导出成功，文件已下载到浏览器默认下载目录。';
+  } catch (error) {
+    ui.authStatus.textContent = `日志导出失败：${error.message}`;
+  }
+}
+
 function initApiKeyInput() {
   const saved = window.localStorage.getItem(API_KEY_STORAGE_KEY);
   if (saved) ui.steamApiKeyInput.value = saved;
@@ -445,8 +491,10 @@ ui.steamLoginBtn.addEventListener('click', () => {
   loginUrl.searchParams.set('origin', window.location.origin);
   window.location.href = loginUrl.toString();
 });
+ui.refreshInventoryBtn.addEventListener('click', refreshInventory);
 ui.loadDemoBtn.addEventListener('click', loadDemoInventory);
 ui.loadByTradeUrlBtn.addEventListener('click', loadByTradeUrl);
+ui.exportLogsBtn.addEventListener('click', exportServerLogs);
 ui.collectionSelect.addEventListener('change', refreshRarityOptions);
 ui.raritySelect.addEventListener('change', refreshSkinOptions);
 ui.skinSelect.addEventListener('change', refreshSelectedHint);

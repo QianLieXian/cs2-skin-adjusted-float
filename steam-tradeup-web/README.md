@@ -28,27 +28,25 @@ npm run start
 
 
 
-### 已登录但“库存 0 件 / source unknown”
+### 已登录但“库存 0 件 / source auth”
 
-这通常是后端未读取到可用的 `STEAM_API_KEY` 导致的，不是你 Steam 账号没物品。
+新版本已改为：**登录后优先走 `steamcommunity.com/inventory/{steamId}/730/2`**，不再把 `IEconItems_730` 当主路径（该旧接口在 CS2 场景常见空数据）。
 
-- 启动日志如果出现 `[WARN] Missing STEAM_API_KEY`，说明服务端无法调用 Steam 库存 API。
-- 新版本会在页面明确显示“请在后端 .env 配置 STEAM_API_KEY，或在前端填写 Steam Web API Key 后重试”。
+若仍显示 0 件，优先检查：
 
-请在 `steam-tradeup-web/.env` 增加：
+1. 库存可见性（个人资料 / 库存是否公开）；
+2. 服务器网络是否能访问 `steamcommunity.com`；
+3. 代理是否正确（日志里可看 `Global proxy enabled ...`）。
+
+`STEAM_API_KEY` 仍可作为回退路径（legacy），但不是主链路。你可在前端临时填写，也可放 `.env`：
 
 ```env
 STEAM_API_KEY=你的SteamWebAPIKey
 ```
 
-保存后重启：
-
-```bash
-npm run start
-```
-
-如果你暂时不想改服务器 `.env`，也可先在网页里填写 API Key，再点击登录后读取库存。
-如果你不想登录，可改用“通过交易链接读取库存”（要求库存公开）。
+另外，页面新增：
+- **“刷新已登录库存”**：不重新登录，直接重拉库存；
+- **“导出后端日志”**：一键下载当前运行期日志，便于排障。
 
 ### `InternalOpenIDError: Failed to verify assertion`
 
