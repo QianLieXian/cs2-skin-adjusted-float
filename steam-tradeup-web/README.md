@@ -37,6 +37,7 @@ npm run start
    - `expectedRealm`
 3. 固定 `BASE_URL`（或显式设置 `STEAM_REALM` 与 `STEAM_RETURN_URL`），避免登录发起与回调阶段使用了不同 Host。
 4. 反向代理场景请正确透传 `X-Forwarded-Proto` 与 `X-Forwarded-Host`。
+5. 如果你的面板代理会把 Host 改写成 `localhost`，请在 `.env` 增加固定公网地址：`PUBLIC_BASE_URL=https://你的域名`。
 
 示例：
 
@@ -44,6 +45,8 @@ npm run start
 BASE_URL=http://localhost:5173
 STEAM_REALM=http://localhost:5173/
 STEAM_RETURN_URL=http://localhost:5173/api/auth/steam/return
+# 反向代理头不稳定时建议显式指定
+PUBLIC_BASE_URL=https://example.com
 ```
 
 ### `InternalOpenIDError: Failed to discover OP endpoint URL` / `connect ETIMEDOUT ...:443`
