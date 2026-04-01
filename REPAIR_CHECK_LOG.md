@@ -1,5 +1,35 @@
 # 修复检查日志（2026-04-01）
 
+## 2026-04-01（再修：API Key 404 + 全量 float 缺失）
+
+### 问题现象
+- 前端调用 `/api/inventory/by-api-key` 返回 404（即使 steamId/key 已填写）。
+- 库存读取成功但 `float 缺失` 接近 100%，`exactFloatCount = 0`。
+
+### 根因判断
+1. **API Key 直连接口过于“单链路”**：仅依赖 `IEconService`，一旦返回 0 就直接 404，没有继续尝试社区库存或旧接口。
+2. **inspect 查询容错不足**：仅使用 `?url=<inspect_link>` 单一模式请求 CSFloat，部分链接/返回形态下无法命中 float。
+3. **缺少批量探测**：大量单条 inspect 请求在代理不稳时更容易全部超时，导致“全缺失”。
+
+### 本轮修复
+1. **`/api/inventory/by-api-key` 增加完整回退链**
+   - 优先：`IEconService/GetInventoryItemsWithDescriptions`
+   - 回退 1：`steamcommunity /inventory/{steamId}/730/2`
+   - 回退 2：`IEconItems_730/GetPlayerItems`
+   - 三条都失败时返回 404，并附带 `fallbackErrors` 明细，避免“只有一句读取失败”。
+
+2. **inspect float 增加“双通道”解析**
+   - 先走 `?url=<inspect_link>`；
+   - 若未取到 float，再解析 inspect link 中的 `S/M + A + D` 参数，改用 `?s/?m + a + d` 方式重试。
+
+3. **增加 CSFloat `/bulk` 批量预取**
+   - 缺失 float 项先按 inspect link 去重，分块调用 `/bulk` 批量拿 float。
+   - 批量未命中时再落回单条请求，兼顾成功率与响应速度。
+
+### 结果
+- API Key 读取不再因为单链路空结果立刻失败，诊断信息更完整。
+- inspect float 覆盖率提升，`exactFloatCount` 在可获取场景下显著高于之前版本。
+
 ## 2026-04-01（再修：API Key + 交易链接读取“卡住/float 缺失/代理反复 ECONNRESET”）
 
 ### 问题现象
