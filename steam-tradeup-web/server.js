@@ -27,7 +27,13 @@ function resolveSteamProxyCandidates() {
     CLASH_MIXED_PORT,
     STEAM_USE_SYSTEM_PROXY,
     HTTPS_PROXY,
-    HTTP_PROXY
+    HTTP_PROXY,
+    ALL_PROXY,
+    https_proxy,
+    http_proxy,
+    all_proxy,
+    npm_config_proxy,
+    npm_config_https_proxy
   } = process.env;
 
   const candidates = [];
@@ -41,6 +47,22 @@ function resolveSteamProxyCandidates() {
   const explicit = normalizeProxyUrl(STEAM_PROXY_URL);
   if (explicit) pushCandidate(explicit);
 
+  const systemProxyValues = [
+    HTTPS_PROXY,
+    HTTP_PROXY,
+    ALL_PROXY,
+    https_proxy,
+    http_proxy,
+    all_proxy,
+    npm_config_https_proxy,
+    npm_config_proxy
+  ];
+
+  // 默认优先尝试用户侧代理环境变量（例如 Clash/系统代理），避免写死“内部代理”。
+  for (const value of systemProxyValues) {
+    pushCandidate(value);
+  }
+
   const fixedPorts = [STEAM_PROXY_PORT, MIXED_PROXY_PORT, CLASH_MIXED_PORT]
     .map((it) => String(it ?? '').trim())
     .filter(Boolean);
@@ -52,8 +74,9 @@ function resolveSteamProxyCandidates() {
 
   const allowSystemProxy = String(STEAM_USE_SYSTEM_PROXY ?? '').toLowerCase() === 'true';
   if (allowSystemProxy) {
-    pushCandidate(HTTPS_PROXY);
-    pushCandidate(HTTP_PROXY);
+    for (const value of systemProxyValues) {
+      pushCandidate(value);
+    }
   }
 
   return candidates;
@@ -122,23 +145,7 @@ if (proxyUrl) {
   console.warn('[WARN] Proxy env is set but invalid. Expected format like http://127.0.0.1:7897');
 }
 
-if (!proxyUrl) {
-  const proxyEnvKeys = [
-    'HTTP_PROXY',
-    'HTTPS_PROXY',
-    'http_proxy',
-    'https_proxy',
-    'ALL_PROXY',
-    'all_proxy',
-    'npm_config_proxy',
-    'npm_config_https_proxy'
-  ];
-  for (const key of proxyEnvKeys) {
-    if (process.env[key]) {
-      delete process.env[key];
-    }
-  }
-}
+// 注意：不再清理用户的代理环境变量，避免破坏用户本机代理链路。
 
 import express from 'express';
 import session from 'express-session';
