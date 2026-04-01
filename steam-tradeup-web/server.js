@@ -372,8 +372,22 @@ function parseFloatFromInspectResponse(payload) {
   return null;
 }
 
+function safeDecodeURIComponent(raw = '') {
+  const value = String(raw ?? '').trim();
+  if (!value) return '';
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    try {
+      return decodeURIComponent(value.replace(/%(?![0-9a-fA-F]{2})/g, '%25'));
+    } catch {
+      return value;
+    }
+  }
+}
+
 function parseInspectLinkParams(rawInspectLink = '') {
-  const decoded = decodeURIComponent(String(rawInspectLink ?? '').trim());
+  const decoded = safeDecodeURIComponent(rawInspectLink);
   if (!decoded) return null;
   const normalized = decoded.replace(/\+/g, ' ');
   const match = normalized.match(/csgo_econ_action_preview\s+([SM])(\d+)A(\d+)D(\d+)/i);
@@ -426,7 +440,12 @@ const skinDictionary = buildSkinDictionary();
 async function resolveFloatFromInspectLink(item = {}) {
   if (typeof item.floatValue === 'number') return item.floatValue;
   if (!item.inspectLink) return null;
-  const inspectParams = parseInspectLinkParams(item.inspectLink);
+  let inspectParams = null;
+  try {
+    inspectParams = parseInspectLinkParams(item.inspectLink);
+  } catch {
+    inspectParams = null;
+  }
   try {
     const response = await getWithDirectFallback(CSFLOAT_INSPECT_API, {
       params: { url: item.inspectLink },
@@ -1345,7 +1364,7 @@ function accountIdToSteamId64(accountId) {
 
 function parseTradeUrl(raw) {
   try {
-    const decoded = decodeURIComponent(String(raw ?? '').trim());
+    const decoded = safeDecodeURIComponent(raw);
     const normalized = /^https?:\/\//i.test(decoded) ? decoded : `https://${decoded}`;
     const url = new URL(normalized);
     if (!/steamcommunity\.com$/.test(url.hostname) || !url.pathname.includes('/tradeoffer/new')) return null;

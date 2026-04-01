@@ -1,5 +1,38 @@
 # 修复检查日志（2026-04-01）
 
+## 2026-04-01（再修：已登录库存报 `URI malformed` 导致整链路误判失败）
+
+### 问题现象
+- 你提供的日志里 `/api/inventory` 连续报：
+  - `Inventory fetch failed via community ... message: 'URI malformed'`
+  - 随后才继续走 `econ_service_empty / legacy_econitems(410)`，最终 500。
+- 这会误导为“社区库存读取失败”，但实际上是后处理阶段被异常打断。
+
+### 根因判断
+1. **inspect 链接解析过于脆弱**：`parseInspectLinkParams` 直接 `decodeURIComponent`，当库存中出现不规范 `%` 编码时会抛 `URI malformed`。
+2. **异常边界不清晰**：该异常发生在库存增强（float 补全）阶段，但会沿调用栈冒泡到 `/api/inventory`，被记录为 `community` 失败，掩盖真实根因。
+3. **公开库存链路同类风险**：`parseTradeUrl` 也使用直接解码，存在同类输入触发点。
+
+### 本轮修复
+1. **新增安全解码器 `safeDecodeURIComponent`**
+   - 首次按标准 `decodeURIComponent`；
+   - 失败后自动修复“非法 `%`”再解码；
+   - 再失败则回退原字符串，避免整链路崩溃。
+
+2. **inspect 参数解析切换到安全解码**
+   - `parseInspectLinkParams` 改为使用安全解码，不再因单条异常 inspect 链接导致整次库存读取失败。
+
+3. **float 单条补全增加防护**
+   - `resolveFloatFromInspectLink` 对 inspect 参数解析增加兜底，保证“单个链接坏数据”只影响该条目的 float，不影响整个接口响应。
+
+4. **交易链接解析同步加固**
+   - `parseTradeUrl` 同步切到安全解码，减少用户粘贴非标准编码链接时的解析失败概率。
+
+### 结果
+- `URI malformed` 不再中断库存主流程。
+- 即便存在异常 inspect/交易链接，也会降级为“单条 float 缺失或链接无效”，不会拖垮整批库存接口。
+- 日志诊断与真实失败源更一致，避免再次出现“修了很多次但根因其实一直是解码异常”的重复返工。
+
 ## 2026-04-01（再修：API Key 404 + 全量 float 缺失）
 
 ### 问题现象
