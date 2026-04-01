@@ -162,7 +162,7 @@ if (proxyUrl) {
   process.env.CLASH_MIXED_PORT ||
   process.env.STEAM_USE_SYSTEM_PROXY === 'true'
 ) {
-  console.warn('[WARN] Proxy env is set but invalid. Expected format like http://127.0.0.1:7897');
+  console.warn('[WARN] Proxy env is set but invalid. Expected formats like http://127.0.0.1:7897 or socks5://127.0.0.1:7890');
 }
 
 // 注意：不再清理用户的代理环境变量，避免破坏用户本机代理链路。
@@ -172,6 +172,7 @@ import session from 'express-session';
 import passport from 'passport';
 import { Strategy as SteamStrategy } from 'passport-steam';
 import axios from 'axios';
+import { ProxyAgent } from 'proxy-agent';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -194,25 +195,18 @@ if (!STEAM_API_KEY) {
   console.warn('[WARN] Missing STEAM_API_KEY. Steam login/inventory API will not work.');
 }
 
-const proxyConfig = proxyUrl
-  ? (() => {
-      try {
-        const parsed = new URL(proxyUrl);
-        return {
-          protocol: parsed.protocol.replace(':', ''),
-          host: parsed.hostname,
-          port: Number(parsed.port)
-        };
-      } catch {
-        return undefined;
-      }
-    })()
-  : undefined;
+const axiosConfig = {
+  timeout: 25000
+};
 
-const http = axios.create({
-  timeout: 25000,
-  proxy: proxyConfig ?? false
-});
+if (proxyUrl) {
+  const proxyAgent = new ProxyAgent(proxyUrl);
+  axiosConfig.httpAgent = proxyAgent;
+  axiosConfig.httpsAgent = proxyAgent;
+  axiosConfig.proxy = false;
+}
+
+const http = axios.create(axiosConfig);
 
 passport.serializeUser((user, done) => done(null, user));
 passport.deserializeUser((obj, done) => done(null, obj));
