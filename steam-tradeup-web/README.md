@@ -14,12 +14,38 @@
 
 ```bash
 cd steam-tradeup-web
-cp .env.example .env
 npm install
 npm run start
 ```
 
 打开 `http://localhost:5173`。
+
+## 常见问题
+
+### `Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'express'`
+
+这是依赖未安装或安装不完整导致的。请在 `steam-tradeup-web` 目录执行：
+
+```bash
+npm install
+```
+
+如果你之前在错误目录执行过命令，建议先确认当前路径正确，再重装依赖。仍有问题时可尝试：
+
+```bash
+rm -rf node_modules package-lock.json
+npm install
+```
+
+Windows PowerShell 可用：
+
+```powershell
+Remove-Item -Recurse -Force node_modules
+Remove-Item -Force package-lock.json
+npm install
+```
+
+> 建议使用 Node.js LTS（20.x 或 22.x）。
 
 ## Steam 对接说明
 

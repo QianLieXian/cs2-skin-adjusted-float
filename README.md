@@ -1,12 +1,17 @@
 # CS2 Skin Adjusted Float Calculator
 
-一个用于 **CS2 Trade Up 合成磨损预测** 的轻量工具（Python GUI）。
+一个用于 **CS2 Trade Up 合成磨损预测** 的轻量工具仓库，包含：
+
+- 桌面端：`tradeup_calculator_gui.py`（Python GUI）
+- Web 端：`steam-tradeup-web/`（Node.js + Express + Steam 登录/库存接口）
 
 该工具基于社区当前普遍采用的“先归一化、再映射”的计算方式，适合在合成前快速评估输出磨损区间与品级。
 
 ---
 
 ## 功能概览
+
+### Python GUI
 
 - 支持 **5 件** 或 **10 件** 输入皮肤。
 - 每件输入可独立设置：
@@ -15,6 +20,13 @@
   - 该皮肤最大磨损（Max Float）
 - 可设置目标输出皮肤的最小/最大磨损。
 - 自动计算预测输出磨损，并显示对应磨损品级。
+
+### steam-tradeup-web（Web 子项目）
+
+- 浏览器端输入目标磨损并计算最接近候选结果。
+- 提供 Steam 登录与库存读取接口（需后端环境变量）。
+- 支持通过交易链接读取公开库存（无需登录）。
+- 内置饰品磨损区间数据，并支持脚本更新数据源。
 
 ---
 
@@ -40,20 +52,39 @@ result = output\_min + avg(n_i) \times (output\_max - output\_min)
 
 ## 快速开始
 
-### 环境要求
+### 1) 运行 Python GUI
 
+环境要求：
 - Python 3.9+
 - Tkinter（多数 Python 发行版已内置）
 
-### 运行方式
+运行：
 
 ```bash
 python3 tradeup_calculator_gui.py
 ```
 
+### 2) 运行 steam-tradeup-web
+
+```bash
+cd steam-tradeup-web
+npm install
+npm run start
+```
+
+访问：`http://localhost:5173`
+
+> 如果你遇到 `Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'express'`，说明依赖未安装或安装不完整。请在 `steam-tradeup-web` 目录重新执行：
+>
+> ```bash
+> npm install
+> ```
+>
+> 如仍报错，可删除 `node_modules` 和 `package-lock.json` 后重装。
+
 ---
 
-## 使用说明
+## 使用说明（GUI）
 
 1. 选择输入数量（5 件或 10 件）。
 2. 为每件皮肤填写 `Float / Min / Max`。
