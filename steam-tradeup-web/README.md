@@ -31,8 +31,9 @@ npm run start
 
 1. 在 `.env` 中确认：
    - `STEAM_OPENID_PROVIDER=https://steamcommunity.com/openid`
-2. 如果仍超时，配置代理（示例）：
-   - `STEAM_PROXY_URL=http://127.0.0.1:7890`
+2. 如果仍超时，配置代理（任选一种，示例端口 `7897`）：
+   - `STEAM_PROXY_URL=http://127.0.0.1:7897`
+   - 或 `HTTPS_PROXY=http://127.0.0.1:7897`（也兼容 `HTTP_PROXY`）
 3. 重启服务 `npm run start`。
 
 > 代理开启后，Steam 登录、OpenID 发现、公开库存读取都会走该代理。

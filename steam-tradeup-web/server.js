@@ -2,11 +2,32 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const { STEAM_PROXY_URL } = process.env;
-if (STEAM_PROXY_URL) {
-  process.env.GLOBAL_AGENT_HTTP_PROXY = STEAM_PROXY_URL;
+function normalizeProxyUrl(raw) {
+  const value = String(raw ?? '').trim();
+  if (!value) return null;
+
+  const withProtocol = /^[a-z]+:\/\//i.test(value) ? value : `http://${value}`;
+
+  try {
+    const parsed = new URL(withProtocol);
+    if (!parsed.hostname || !parsed.port) return null;
+    return parsed.toString();
+  } catch {
+    return null;
+  }
+}
+
+const proxyUrl = normalizeProxyUrl(
+  process.env.STEAM_PROXY_URL ?? process.env.HTTPS_PROXY ?? process.env.HTTP_PROXY
+);
+
+if (proxyUrl) {
+  process.env.GLOBAL_AGENT_HTTP_PROXY = proxyUrl;
+  process.env.GLOBAL_AGENT_HTTPS_PROXY = proxyUrl;
   await import('global-agent/bootstrap.js');
-  console.log('[INFO] Global proxy enabled for Steam/OpenID requests.');
+  console.log(`[INFO] Global proxy enabled for Steam/OpenID requests: ${proxyUrl}`);
+} else if (process.env.STEAM_PROXY_URL || process.env.HTTPS_PROXY || process.env.HTTP_PROXY) {
+  console.warn('[WARN] Proxy env is set but invalid. Expected format like http://127.0.0.1:7897');
 }
 
 import express from 'express';
@@ -36,9 +57,24 @@ if (!STEAM_API_KEY) {
   console.warn('[WARN] Missing STEAM_API_KEY. Steam login/inventory API will not work.');
 }
 
+const proxyConfig = proxyUrl
+  ? (() => {
+      try {
+        const parsed = new URL(proxyUrl);
+        return {
+          protocol: parsed.protocol.replace(':', ''),
+          host: parsed.hostname,
+          port: Number(parsed.port)
+        };
+      } catch {
+        return undefined;
+      }
+    })()
+  : undefined;
+
 const http = axios.create({
   timeout: 25000,
-  proxy: false
+  proxy: proxyConfig
 });
 
 passport.serializeUser((user, done) => done(null, user));
