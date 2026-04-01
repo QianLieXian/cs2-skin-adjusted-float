@@ -1,5 +1,44 @@
 # 修复检查日志（2026-04-01）
 
+## 2026-04-01（再次复修：已登录但 `/api/inventory` 500、库存仍显示 0）
+
+### 问题现象
+- 日志显示 Steam 登录成功（含 replay nonce fallback 放行），`/api/session` 返回 200。
+- 但随后 `/api/inventory` 返回 500，前端仍显示库存 0。
+- 用户点击刷新、导出日志体感“没变化”。
+
+### 根因判断
+1. 已登录库存主链路 `steamcommunity inventory` 一旦失败，当前版本仅尝试了非常旧的 `IEconItems_730` 回退，覆盖率不足。
+2. 库存失败时后端日志缺少“每个回退链路失败原因”的结构化输出，前端也看不到完整失败链。
+3. 前端对 `/api/session`、`/api/inventory`、`/api/logs/export` 读取未显式禁用缓存，容易出现“看起来没刷新”的错觉。
+
+### 本轮修复
+1. **新增第二回退链路（IEconService）**
+   - 在 `/api/inventory` 中加入 `IEconService/GetInventoryItemsWithDescriptions/v1/` 回退（支持分页）。
+   - 顺序调整为：
+     - 主链路：`steamcommunity inventory`
+     - 回退 1：`IEconService/GetInventoryItemsWithDescriptions`
+     - 回退 2：`IEconItems_730/GetPlayerItems`（legacy）
+
+2. **统一资产解析器并增强兼容**
+   - 新增通用的 `assets + descriptions` 解析函数，社区库存与 IEconService 共用同一套解析逻辑。
+   - 输出字段保持一致（`id/marketHashName/iconUrl/inspectLink/tradable/cooldown`）。
+
+3. **失败链路可观测性增强**
+   - `/api/inventory` 每次回退失败都记录结构化日志（source/status/message）。
+   - 500 响应新增 `fallbackErrors` 字段，前端可直接展示每条失败路径。
+
+4. **前端刷新/会话/日志导出禁用缓存**
+   - 对 `/api/session`、`/api/inventory`、`/api/inventory/public`、`/api/logs/export` 统一使用：
+     - `credentials: 'include'`
+     - `cache: 'no-store'`
+   - 降低浏览器缓存导致的“刷新无感知”与状态陈旧问题。
+
+### 结果
+- 登录后库存读取在主链路失败时，新增一层更可用的 API 回退，减少直接 500 的概率。
+- 当仍失败时，用户端可直接看到完整失败链原因（不再只有一句“失败”）。
+- 刷新与日志导出行为更稳定，不再依赖浏览器缓存策略。
+
 ## 2026-04-01（库存 0 件复修 + 刷新按钮 + 日志导出）
 
 ### 问题现象

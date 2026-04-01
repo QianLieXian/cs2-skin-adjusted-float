@@ -1112,22 +1112,23 @@ async function fetchInventory(steamId, apiKey) {
   return data?.result?.items ?? [];
 }
 
-function parseCommunityInventoryPayload(data, steamId) {
+function parseAssetDescriptionInventoryPayload(payload, steamId) {
   const descriptions = new Map(
-    (data?.descriptions ?? []).map((d) => [`${d.classid}_${d.instanceid}`, d])
+    (payload?.descriptions ?? []).map((d) => [`${d.classid}_${d.instanceid}`, d])
   );
-  const items = (data?.assets ?? []).map((asset) => {
+  const assets = payload?.assets ?? payload?.items ?? [];
+  const items = assets.map((asset) => {
     const key = `${asset.classid}_${asset.instanceid}`;
-    const desc = descriptions.get(key) ?? {};
+    const desc = descriptions.get(key) ?? asset ?? {};
     const inspectAction = (desc.actions ?? []).find((a) => /Inspect in Game/i.test(a.name));
     const inspectLink = (inspectAction?.link ?? '')
       .replace('%owner_steamid%', steamId)
-      .replace('%assetid%', asset.assetid);
+      .replace('%assetid%', asset.assetid ?? asset.id ?? '');
     const cooldownText = extractCooldownText([...(desc.owner_descriptions ?? []), ...(desc.descriptions ?? [])]);
     const tradable = Number(desc.tradable ?? 1) === 1;
     return {
-      id: String(asset.assetid),
-      marketHashName: desc.market_hash_name ?? '',
+      id: String(asset.assetid ?? asset.id ?? ''),
+      marketHashName: desc.market_hash_name ?? desc.marketHashName ?? '',
       iconUrl: desc.icon_url ? `https://community.fastly.steamstatic.com/economy/image/${desc.icon_url}/96fx96f` : '',
       inspectLink,
       tradable,
@@ -1136,8 +1137,11 @@ function parseCommunityInventoryPayload(data, steamId) {
       floatValue: null
     };
   });
+  return normalizeInventory(items.filter((it) => it.id));
+}
 
-  return normalizeInventory(items);
+function parseCommunityInventoryPayload(data, steamId) {
+  return parseAssetDescriptionInventoryPayload(data, steamId);
 }
 
 async function fetchInventoryFromCommunity(steamId) {
@@ -1158,6 +1162,36 @@ async function fetchInventoryFromCommunity(steamId) {
   };
 }
 
+async function fetchInventoryFromEconService(steamId, apiKey) {
+  const url = `${STEAM_WEB_API}/IEconService/GetInventoryItemsWithDescriptions/v1/`;
+  let startAssetId = null;
+  const allItems = [];
+  for (let i = 0; i < 4; i += 1) {
+    const { data } = await getWithDirectFallback(url, {
+      params: {
+        key: apiKey,
+        steamid: steamId,
+        appid: 730,
+        contextid: 2,
+        count: 2000,
+        ...(startAssetId ? { start_assetid: startAssetId } : {})
+      }
+    });
+    const result = data?.result ?? {};
+    const chunk = parseAssetDescriptionInventoryPayload(result, steamId);
+    allItems.push(...chunk);
+    if (!result.more_items || !result.last_assetid) break;
+    startAssetId = result.last_assetid;
+  }
+  const deduped = [...new Map(allItems.map((it) => [it.id, it])).values()];
+  return {
+    source: 'econ_service_api',
+    total: deduped.length,
+    cooldownCount: deduped.filter((it) => it.cooldown).length,
+    items: deduped
+  };
+}
+
 function resolveSteamApiKey(req) {
   const keyFromQuery = String(req?.query?.apiKey ?? '').trim();
   const keyFromHeader = String(req?.headers?.['x-steam-api-key'] ?? '').trim();
@@ -1166,6 +1200,18 @@ function resolveSteamApiKey(req) {
 }
 
 app.get('/api/inventory', requireAuth, async (req, res) => {
+  const errors = [];
+  const pushError = (source, error) => {
+    const status = Number(error?.response?.status ?? 0);
+    const message = String(error?.message ?? 'unknown error');
+    errors.push({ source, status: status || null, message });
+    console.error(`[ERROR] Inventory fetch failed via ${source}`, {
+      steamId: req.user?.steamId ?? null,
+      status: status || null,
+      message
+    });
+  };
+
   try {
     const communityResult = await fetchInventoryFromCommunity(req.user.steamId);
     return res.json({
@@ -1174,8 +1220,20 @@ app.get('/api/inventory', requireAuth, async (req, res) => {
       note: '库存优先来自 steamcommunity inventory 接口；官方 Web API 在 CS2 场景经常返回空结果。'
     });
   } catch (error) {
+    pushError('community', error);
     const apiKey = resolveSteamApiKey(req);
     if (apiKey) {
+      try {
+        const econServiceResult = await fetchInventoryFromEconService(req.user.steamId, apiKey);
+        return res.json({
+          ...econServiceResult,
+          inspectApi: `${CSFLOAT_INSPECT_API}/?url=<inspect_link>`,
+          note: '主链路失败后，已回退到 IEconService/GetInventoryItemsWithDescriptions。'
+        });
+      } catch (econServiceError) {
+        pushError('econ_service', econServiceError);
+      }
+
       try {
         const items = await fetchInventory(req.user.steamId, apiKey);
         const normalized = items
@@ -1199,10 +1257,7 @@ app.get('/api/inventory', requireAuth, async (req, res) => {
           note: '回退到 Steam Web API（IEconItems_730）读取。若仍为 0，通常不是 key 问题而是该接口对 CS2 数据不完整。'
         });
       } catch (legacyError) {
-        console.error('[ERROR] Legacy Steam API inventory fetch failed', {
-          message: legacyError.message,
-          steamId: req.user.steamId
-        });
+        pushError('legacy_econitems', legacyError);
       }
     }
 
@@ -1213,6 +1268,7 @@ app.get('/api/inventory', requireAuth, async (req, res) => {
     return res.status(500).json({
       error: 'Failed to fetch inventory',
       details: `${error.message}。${hints}`,
+      fallbackErrors: errors,
       source: 'auth',
       total: 0,
       cooldownCount: 0,

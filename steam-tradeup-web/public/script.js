@@ -112,6 +112,7 @@ const WEAPON_ZH = {
 
 const fmt16 = (n) => Number(n).toFixed(16);
 const sanitizeApiKey = (value) => String(value ?? '').trim();
+const API_FETCH_OPTIONS = { credentials: 'include', cache: 'no-store' };
 
 function getSteamApiKey() {
   return sanitizeApiKey(ui.steamApiKeyInput?.value);
@@ -350,7 +351,7 @@ function loadDemoInventory() {
 
 async function tryLoadSession() {
   try {
-    const session = await fetch(API.session).then((r) => r.json());
+    const session = await fetch(API.session, API_FETCH_OPTIONS).then((r) => r.json());
     if (!session?.loggedIn) {
       ui.authStatus.textContent = '未登录';
       return;
@@ -369,11 +370,14 @@ async function loadAuthedInventory(user) {
   const apiKey = getSteamApiKey();
   if (apiKey) query.set('apiKey', apiKey);
   const inventoryUrl = query.size > 0 ? `${API.inventory}?${query.toString()}` : API.inventory;
-  const invRes = await fetch(inventoryUrl);
+  const invRes = await fetch(inventoryUrl, API_FETCH_OPTIONS);
   const invResp = await invRes.json();
   inventoryItems = invResp.items || [];
   if (!invRes.ok) {
-    const reason = invResp?.details || invResp?.error || '读取失败';
+    const fallbackErrors = Array.isArray(invResp?.fallbackErrors)
+      ? `；回退链路：${invResp.fallbackErrors.map((it) => `${it.source}(${it.status ?? 'n/a'}): ${it.message}`).join(' | ')}`
+      : '';
+    const reason = `${invResp?.details || invResp?.error || '读取失败'}${fallbackErrors}`;
     ui.authStatus.textContent = `已登录 Steam: ${displayName} (${steamId})\n库存读取失败：${reason}`;
     renderInventoryMeta(invResp);
     return;
@@ -424,7 +428,7 @@ async function loadByTradeUrl() {
     const query = new URLSearchParams({ tradeUrl });
     const apiKey = getSteamApiKey();
     if (apiKey) query.set('apiKey', apiKey);
-    const resp = await fetch(`${API.publicInventory}?${query.toString()}`);
+    const resp = await fetch(`${API.publicInventory}?${query.toString()}`, API_FETCH_OPTIONS);
     const data = await resp.json();
     if (!resp.ok) throw new Error(data?.details || data?.error || '读取失败');
     inventoryItems = data.items || [];
@@ -437,7 +441,7 @@ async function loadByTradeUrl() {
 
 async function refreshInventory() {
   try {
-    const session = await fetch(API.session).then((r) => r.json());
+    const session = await fetch(API.session, API_FETCH_OPTIONS).then((r) => r.json());
     if (!session?.loggedIn) {
       ui.authStatus.textContent = '请先登录 Steam，再刷新库存。';
       return;
@@ -451,7 +455,7 @@ async function refreshInventory() {
 async function exportServerLogs() {
   ui.authStatus.textContent = '正在导出后端日志...';
   try {
-    const response = await fetch('/api/logs/export');
+    const response = await fetch('/api/logs/export', API_FETCH_OPTIONS);
     if (!response.ok) {
       const payload = await response.json().catch(() => ({}));
       throw new Error(payload?.details || payload?.error || '导出失败');
