@@ -82,9 +82,8 @@ function resolveSteamProxyCandidates() {
   const fixedPorts = [STEAM_PROXY_PORT, MIXED_PROXY_PORT, CLASH_MIXED_PORT]
     .map((it) => String(it ?? '').trim())
     .filter(Boolean);
-  const fallbackMixedPort = fixedPorts.length === 0 ? '7898' : null;
 
-  for (const port of [...fixedPorts, ...(fallbackMixedPort ? [fallbackMixedPort] : [])]) {
+  for (const port of fixedPorts) {
     const host = String(STEAM_PROXY_HOST ?? '127.0.0.1').trim() || '127.0.0.1';
     pushFixedPortCandidate(`http://${host}:${port}`);
   }
