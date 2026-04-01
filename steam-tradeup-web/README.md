@@ -25,6 +25,27 @@ npm run start
 ### `Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'express'`
 
 
+
+### `InternalOpenIDError: Failed to verify assertion`
+
+这通常不是 API Key 错误，而是 **Steam 回调地址不一致**（域名/端口/http-https 任意一项不一致）导致：
+
+1. 先看后端新增日志（`[INFO] Steam OpenID start` / `[INFO] Steam OpenID return` / `[ERROR] Steam OpenID callback failed`）。
+2. 对比以下字段必须一致：
+   - `expectedReturnURL`
+   - `openid.return_to`
+   - `expectedRealm`
+3. 固定 `BASE_URL`（或显式设置 `STEAM_REALM` 与 `STEAM_RETURN_URL`），避免登录发起与回调阶段使用了不同 Host。
+4. 反向代理场景请正确透传 `X-Forwarded-Proto` 与 `X-Forwarded-Host`。
+
+示例：
+
+```env
+BASE_URL=http://localhost:5173
+STEAM_REALM=http://localhost:5173/
+STEAM_RETURN_URL=http://localhost:5173/api/auth/steam/return
+```
+
 ### `InternalOpenIDError: Failed to discover OP endpoint URL` / `connect ETIMEDOUT ...:443`
 
 通常是本地网络无法直连 Steam OpenID。现在支持固定 OpenID 端点与可选代理：
@@ -103,3 +124,12 @@ npm run generate:data
 ```
 
 脚本会从 `ByMykel/CSGO-API` 拉取最新 `skins.json` 并重建 `public/data/collection_skins.json`。
+
+
+## 配置项放前端还是后端？
+
+- `STEAM_API_KEY` 必须放后端环境变量（`.env`），**不要放前端页面**。
+- 任何密钥（Steam Web API Key、第三方 token、代理账号密码）都不应出现在前端，因为前端代码和网络请求对用户是可见的。
+- 前端可以填写的是**非敏感参数**（例如交易链接、目标磨损值、筛选条件）。
+
+结论：这个项目里，Steam API Key 只需要后端配置，前端没有必要也不应该提供输入框。
