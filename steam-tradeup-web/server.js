@@ -367,7 +367,68 @@ function getHeaderBaseUrl(raw) {
   }
 }
 
+function parseForwardedHeader(raw) {
+  const value = String(raw ?? '').trim();
+  if (!value) return null;
+  const firstPart = value.split(',')[0] ?? '';
+  const segments = firstPart.split(';').map((it) => it.trim());
+  let proto = '';
+  let host = '';
+  for (const segment of segments) {
+    const [k, v] = segment.split('=');
+    if (!k || !v) continue;
+    const key = k.trim().toLowerCase();
+    const normalizedValue = v.trim().replace(/^"|"$/g, '');
+    if (key === 'proto') proto = normalizedValue;
+    if (key === 'host') host = normalizedValue;
+  }
+  if (!host) return null;
+  const safeProto = proto || 'https';
+  return `${safeProto}://${host}`;
+}
+
+function resolveClientOrigin(req) {
+  const explicitOrigin = getHeaderBaseUrl(req.query.origin);
+  if (explicitOrigin && !isLocalBaseUrl(explicitOrigin)) return explicitOrigin;
+  if (req.session?.steamClientOrigin && !isLocalBaseUrl(req.session.steamClientOrigin)) {
+    return req.session.steamClientOrigin;
+  }
+
+  const forwardedBaseUrl = parseForwardedHeader(req.headers.forwarded);
+  if (forwardedBaseUrl && !isLocalBaseUrl(forwardedBaseUrl)) return forwardedBaseUrl;
+
+  const hostCandidates = [
+    String(req.headers['x-forwarded-host'] ?? '').split(',')[0].trim(),
+    String(req.headers['x-original-host'] ?? '').split(',')[0].trim(),
+    String(req.headers['x-real-host'] ?? '').split(',')[0].trim()
+  ].filter(Boolean);
+  const protoCandidates = [
+    String(req.headers['x-forwarded-proto'] ?? '').split(',')[0].trim(),
+    String(req.headers['x-forwarded-protocol'] ?? '').split(',')[0].trim(),
+    String(req.headers['x-forwarded-scheme'] ?? '').split(',')[0].trim(),
+    String(req.headers['x-scheme'] ?? '').split(',')[0].trim(),
+    req.protocol
+  ].filter(Boolean);
+  for (const host of hostCandidates) {
+    if (isLocalHost(host)) continue;
+    for (const proto of protoCandidates) {
+      return `${proto}://${host}`;
+    }
+  }
+
+  const refererBaseUrl = getHeaderBaseUrl(req.headers.referer);
+  if (refererBaseUrl && !isLocalBaseUrl(refererBaseUrl)) return refererBaseUrl;
+
+  const originBaseUrl = getHeaderBaseUrl(req.headers.origin);
+  if (originBaseUrl && !isLocalBaseUrl(originBaseUrl)) return originBaseUrl;
+
+  return null;
+}
+
 function resolveRequestBaseUrl(req) {
+  const clientOrigin = resolveClientOrigin(req);
+  if (clientOrigin) return clientOrigin;
+
   const forwardedProto = String(req.headers['x-forwarded-proto'] ?? '').split(',')[0].trim();
   const forwardedHost = String(req.headers['x-forwarded-host'] ?? '').split(',')[0].trim();
   const host = forwardedHost || req.get('host');
@@ -450,6 +511,10 @@ function getCanonicalRedirect(req) {
 }
 
 app.get('/api/auth/steam', (req, res, next) => {
+  if (req.session) {
+    const clientOrigin = resolveClientOrigin(req);
+    if (clientOrigin) req.session.steamClientOrigin = clientOrigin;
+  }
   const canonicalRedirect = getCanonicalRedirect(req);
   if (canonicalRedirect) {
     console.warn('[WARN] Steam OpenID start host mismatch, redirecting to canonical host', {
@@ -523,6 +588,7 @@ app.get('/api/auth/steam/return', (req, res, next) => {
         return next(loginError);
       }
       if (req.session?.steamAuth) delete req.session.steamAuth;
+      if (req.session?.steamClientOrigin) delete req.session.steamClientOrigin;
       return res.redirect('/');
     });
   });
