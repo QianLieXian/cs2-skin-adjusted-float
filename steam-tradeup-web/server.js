@@ -187,10 +187,27 @@ const {
   STEAM_API_KEY,
   STEAM_REALM = `${BASE_URL}/`,
   STEAM_RETURN_URL = `${BASE_URL}/api/auth/steam/return`,
-  STEAM_OPENID_PROVIDER = 'https://steamcommunity.com/openid/login',
+  STEAM_OPENID_PROVIDER = 'https://steamcommunity.com/openid',
   STEAM_WEB_API = 'https://api.steampowered.com',
   CSFLOAT_INSPECT_API = 'https://api.csfloat.com'
 } = process.env;
+
+function normalizeOpenIdProvider(raw) {
+  const value = String(raw ?? '').trim();
+  if (!value) return 'https://steamcommunity.com/openid';
+  try {
+    const url = new URL(value);
+    const normalizedPath = url.pathname.replace(/\/+$/, '');
+    if (normalizedPath === '/openid/login') {
+      url.pathname = '/openid';
+      url.search = '';
+      url.hash = '';
+    }
+    return url.toString().replace(/\/$/, '');
+  } catch {
+    return 'https://steamcommunity.com/openid';
+  }
+}
 
 function normalizeBaseUrl(raw) {
   const value = String(raw ?? '').trim();
@@ -240,7 +257,7 @@ passport.use(
       returnURL: STEAM_RETURN_URL || defaultSteamReturnUrl,
       realm: STEAM_REALM || defaultSteamRealm,
       apiKey: STEAM_API_KEY,
-      providerURL: STEAM_OPENID_PROVIDER,
+      providerURL: normalizeOpenIdProvider(STEAM_OPENID_PROVIDER),
       stateless: true
     },
     (_identifier, profile, done) => {
@@ -401,23 +418,51 @@ async function fetchPublicInventoryByTradeUrl(tradeUrl) {
   }
 
   const invUrl = `https://steamcommunity.com/inventory/${parsed.steamId}/730/2`;
+  const baseParams = {
+    l: 'english',
+    count: 5000
+  };
+  const baseHeaders = {
+    Referer: 'https://steamcommunity.com/',
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+  };
   let data;
   try {
     const response = await http.get(invUrl, {
-      params: {
-        l: 'english',
-        count: 5000
-      }
+      params: baseParams,
+      headers: baseHeaders
     });
     data = response.data;
   } catch (error) {
     const statusCode = error?.response?.status;
-    if (statusCode === 400) {
+    if (statusCode === 400 && parsed.token) {
+      try {
+        const retryResponse = await http.get(invUrl, {
+          params: {
+            ...baseParams,
+            trade_offer_access_token: parsed.token
+          },
+          headers: {
+            ...baseHeaders,
+            Referer: tradeUrl
+          }
+        });
+        data = retryResponse.data;
+      } catch (retryError) {
+        if (retryError?.response?.status === 400) {
+          const err = new Error('Steam 返回 400：交易链接无效，或该账户库存不可公开访问。');
+          err.code = 400;
+          throw err;
+        }
+        throw retryError;
+      }
+    } else if (statusCode === 400) {
       const err = new Error('Steam 返回 400：交易链接无效，或该账户库存不可公开访问。');
       err.code = 400;
       throw err;
+    } else {
+      throw error;
     }
-    throw error;
   }
 
   const descriptions = new Map(
