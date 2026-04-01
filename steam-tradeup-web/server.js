@@ -187,10 +187,32 @@ const {
   STEAM_API_KEY,
   STEAM_REALM = `${BASE_URL}/`,
   STEAM_RETURN_URL = `${BASE_URL}/api/auth/steam/return`,
-  STEAM_OPENID_PROVIDER = 'https://steamcommunity.com/openid',
+  STEAM_OPENID_PROVIDER = 'https://steamcommunity.com/openid/login',
   STEAM_WEB_API = 'https://api.steampowered.com',
   CSFLOAT_INSPECT_API = 'https://api.csfloat.com'
 } = process.env;
+
+function normalizeBaseUrl(raw) {
+  const value = String(raw ?? '').trim();
+  if (!value) return 'http://localhost:5173';
+  try {
+    const url = new URL(value);
+    url.hash = '';
+    url.search = '';
+    if (!url.pathname || url.pathname === '/') {
+      url.pathname = '';
+    } else {
+      url.pathname = url.pathname.replace(/\/+$/, '');
+    }
+    return url.toString().replace(/\/$/, '');
+  } catch {
+    return 'http://localhost:5173';
+  }
+}
+
+const normalizedBaseUrl = normalizeBaseUrl(BASE_URL);
+const defaultSteamRealm = `${normalizedBaseUrl}/`;
+const defaultSteamReturnUrl = `${normalizedBaseUrl}/api/auth/steam/return`;
 
 if (!STEAM_API_KEY) {
   console.warn('[WARN] Missing STEAM_API_KEY. Steam login/inventory API will not work.');
@@ -215,8 +237,8 @@ passport.deserializeUser((obj, done) => done(null, obj));
 passport.use(
   new SteamStrategy(
     {
-      returnURL: STEAM_RETURN_URL,
-      realm: STEAM_REALM,
+      returnURL: STEAM_RETURN_URL || defaultSteamReturnUrl,
+      realm: STEAM_REALM || defaultSteamRealm,
       apiKey: STEAM_API_KEY,
       providerURL: STEAM_OPENID_PROVIDER,
       stateless: true
@@ -231,6 +253,7 @@ passport.use(
 );
 
 const app = express();
+app.set('trust proxy', true);
 app.use(
   session({
     secret: SESSION_SECRET,
@@ -245,8 +268,31 @@ app.use(express.json());
 
 app.use(express.static(path.join(__dirname, 'public')));
 
-app.get('/api/auth/steam', passport.authenticate('steam', { failureRedirect: '/' }));
-app.get('/api/auth/steam/return', passport.authenticate('steam', { failureRedirect: '/' }), (_req, res) => {
+function resolveRequestBaseUrl(req) {
+  const forwardedProto = String(req.headers['x-forwarded-proto'] ?? '').split(',')[0].trim();
+  const forwardedHost = String(req.headers['x-forwarded-host'] ?? '').split(',')[0].trim();
+  const host = forwardedHost || req.get('host');
+  const protocol = forwardedProto || req.protocol || 'http';
+  if (!host) return normalizedBaseUrl;
+  return `${protocol}://${host}`;
+}
+
+function buildSteamAuthOptions(req) {
+  const requestBaseUrl = resolveRequestBaseUrl(req);
+  return {
+    failureRedirect: '/',
+    realm: STEAM_REALM || `${requestBaseUrl}/`,
+    returnURL: STEAM_RETURN_URL || `${requestBaseUrl}/api/auth/steam/return`
+  };
+}
+
+app.get('/api/auth/steam', (req, res, next) => {
+  passport.authenticate('steam', buildSteamAuthOptions(req))(req, res, next);
+});
+
+app.get('/api/auth/steam/return', (req, res, next) => {
+  passport.authenticate('steam', buildSteamAuthOptions(req))(req, res, next);
+}, (_req, res) => {
   res.redirect('/');
 });
 
@@ -268,7 +314,9 @@ function accountIdToSteamId64(accountId) {
 
 function parseTradeUrl(raw) {
   try {
-    const url = new URL(raw);
+    const decoded = decodeURIComponent(String(raw ?? '').trim());
+    const normalized = /^https?:\/\//i.test(decoded) ? decoded : `https://${decoded}`;
+    const url = new URL(normalized);
     if (!/steamcommunity\.com$/.test(url.hostname) || !url.pathname.includes('/tradeoffer/new')) return null;
     const partner = url.searchParams.get('partner');
     const token = url.searchParams.get('token');
@@ -353,12 +401,24 @@ async function fetchPublicInventoryByTradeUrl(tradeUrl) {
   }
 
   const invUrl = `https://steamcommunity.com/inventory/${parsed.steamId}/730/2`;
-  const { data } = await http.get(invUrl, {
-    params: {
-      l: 'english',
-      count: 5000
+  let data;
+  try {
+    const response = await http.get(invUrl, {
+      params: {
+        l: 'english',
+        count: 5000
+      }
+    });
+    data = response.data;
+  } catch (error) {
+    const statusCode = error?.response?.status;
+    if (statusCode === 400) {
+      const err = new Error('Steam 返回 400：交易链接无效，或该账户库存不可公开访问。');
+      err.code = 400;
+      throw err;
     }
-  });
+    throw error;
+  }
 
   const descriptions = new Map(
     (data?.descriptions ?? []).map((d) => [`${d.classid}_${d.instanceid}`, d])
