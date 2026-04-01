@@ -18,7 +18,7 @@ function normalizeProxyUrl(raw) {
   }
 }
 
-function resolveSteamProxyUrl() {
+function resolveSteamProxyCandidates() {
   const {
     STEAM_PROXY_URL,
     STEAM_PROXY_HOST,
@@ -30,22 +30,33 @@ function resolveSteamProxyUrl() {
     HTTP_PROXY
   } = process.env;
 
-  const explicit = normalizeProxyUrl(STEAM_PROXY_URL);
-  if (explicit) return explicit;
+  const candidates = [];
+  const pushCandidate = (value) => {
+    const normalized = normalizeProxyUrl(value);
+    if (!normalized) return;
+    if (candidates.includes(normalized)) return;
+    candidates.push(normalized);
+  };
 
-  const port = String(STEAM_PROXY_PORT ?? MIXED_PROXY_PORT ?? CLASH_MIXED_PORT ?? '').trim();
-  if (port) {
+  const explicit = normalizeProxyUrl(STEAM_PROXY_URL);
+  if (explicit) pushCandidate(explicit);
+
+  const fixedPorts = [STEAM_PROXY_PORT, MIXED_PROXY_PORT, CLASH_MIXED_PORT]
+    .map((it) => String(it ?? '').trim())
+    .filter(Boolean);
+
+  for (const port of fixedPorts) {
     const host = String(STEAM_PROXY_HOST ?? '127.0.0.1').trim() || '127.0.0.1';
-    const fromPort = normalizeProxyUrl(`http://${host}:${port}`);
-    if (fromPort) return fromPort;
+    pushCandidate(`http://${host}:${port}`);
   }
 
   const allowSystemProxy = String(STEAM_USE_SYSTEM_PROXY ?? '').toLowerCase() === 'true';
   if (allowSystemProxy) {
-    return normalizeProxyUrl(HTTPS_PROXY ?? HTTP_PROXY);
+    pushCandidate(HTTPS_PROXY);
+    pushCandidate(HTTP_PROXY);
   }
 
-  return null;
+  return candidates;
 }
 
 async function isProxyReachable(proxy) {
@@ -81,11 +92,19 @@ async function isProxyReachable(proxy) {
   }
 }
 
-const resolvedProxyUrl = resolveSteamProxyUrl();
-const proxyUrl = (await isProxyReachable(resolvedProxyUrl)) ? resolvedProxyUrl : null;
+const resolvedProxyCandidates = resolveSteamProxyCandidates();
+let proxyUrl = null;
 
-if (resolvedProxyUrl && !proxyUrl) {
-  console.warn(`[WARN] Steam/OpenID proxy is unreachable, fallback to direct connection: ${resolvedProxyUrl}`);
+for (const candidate of resolvedProxyCandidates) {
+  // eslint-disable-next-line no-await-in-loop
+  if (await isProxyReachable(candidate)) {
+    proxyUrl = candidate;
+    break;
+  }
+}
+
+if (resolvedProxyCandidates.length > 0 && !proxyUrl) {
+  console.warn(`[WARN] Steam/OpenID proxy is unreachable, fallback to direct connection: ${resolvedProxyCandidates.join(', ')}`);
 }
 
 if (proxyUrl) {
@@ -101,6 +120,24 @@ if (proxyUrl) {
   process.env.STEAM_USE_SYSTEM_PROXY === 'true'
 ) {
   console.warn('[WARN] Proxy env is set but invalid. Expected format like http://127.0.0.1:7897');
+}
+
+if (!proxyUrl) {
+  const proxyEnvKeys = [
+    'HTTP_PROXY',
+    'HTTPS_PROXY',
+    'http_proxy',
+    'https_proxy',
+    'ALL_PROXY',
+    'all_proxy',
+    'npm_config_proxy',
+    'npm_config_https_proxy'
+  ];
+  for (const key of proxyEnvKeys) {
+    if (process.env[key]) {
+      delete process.env[key];
+    }
+  }
 }
 
 import express from 'express';
