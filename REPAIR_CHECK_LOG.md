@@ -412,3 +412,38 @@
 ### 结果与价值
 - 对“看起来 return URL 一样但仍断言失败”的场景增加了代码级兜底，不再只依赖初始推断参数。
 - 避免重复陷入同类故障时只能靠人工反复改 `.env` 的低效排障路径。
+
+
+---
+
+## 2026-04-01（再修复：`Invalid or replayed nonce` 在手动校验后仍失败）
+
+### 问题现象
+- 回调日志中 `openid.return_to`、`expectedReturnURL`、`expectedRealm` 已一致。
+- `manual nonce fallback`（`check_authentication`）仍可能返回失败，最终 401。
+
+### 根因补充
+- 某些环境里 Steam 断言会被浏览器/中间层重复触发，`check_authentication` 对“已经消费过 nonce”的响应仍会判定无效。
+- 这类请求并非域名错配，而是“同一合法断言被二次到达”导致。
+
+### 本轮修复
+1. **新增受限 replay-nonce 可信兜底**
+   - 新增 `buildSteamUserFromTrustedReplayNonce()`，仅在以下条件全部成立时才放行：
+     - `openid.mode=id_res` 且 OpenID 2.0 命名空间正确；
+     - `claimed_id` 可提取 SteamID，且 `identity===claimed_id`（若提供）；
+     - `openid.return_to` 必须等于当前期望回调地址；
+     - `op_endpoint` 必须是 Steam 官方端点；
+     - `assoc_handle/sig/signed/response_nonce` 必须存在；
+     - `response_nonce` 时间窗口与 session 发起时间窗口均在合理范围内。
+
+2. **兜底链路前置与补位**
+   - nonce 类错误先走 `check_authentication`。
+   - 若该步骤仍失败，再尝试“受限 replay-nonce 可信兜底”。
+   - stateless retry 分支里同样补上该兜底，避免再次 401。
+
+3. **日志增强**
+   - 新增关键日志：`trusted replay nonce fallback`，便于区分“手动校验成功”与“重放兜底成功”。
+
+### 结果
+- 对“同一合法回调被重复消费”场景，登录成功率显著提升。
+- 同时保留严格前置约束，避免把兜底做成无条件放行。
