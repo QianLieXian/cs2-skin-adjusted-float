@@ -132,3 +132,34 @@
 - 默认端口与本地混合端口预期一致（26561）。
 - OpenID 发现失败场景增加了更稳的默认端点和自动回退。
 - 交易链接读取在代理不稳定时具备自动降级直连能力，降低 `ETIMEDOUT` 直接失败概率。
+
+---
+
+## 2026-04-01（Steam 登录回调错误落到 localhost）
+
+### 问题现象
+- 用户从外网域名发起 Steam 登录，但授权后回调 URL 仍显示为：
+  - `http://localhost:5173/api/auth/steam/return?...`
+- 结果：OpenID 回调域名与实际访问域名不一致，登录流程中断。
+
+### 根因分析
+1. **环境变量显式配置了 localhost**
+   - 当 `BASE_URL` / `STEAM_REALM` / `STEAM_RETURN_URL` 设置为 localhost 时，服务端会优先使用该固定值。
+2. **规范主机重定向在 localhost 配置下可能误触发**
+   - 若 canonical host 取自 localhost，外网访问时重定向策略会干扰实际回调域名。
+
+### 本轮修复
+1. **新增 localhost 配置保护逻辑**
+   - 在 `buildSteamAuthOptions()` 中新增“显式配置为 localhost + 当前请求是公网域名”检测。
+   - 命中该场景时，自动改用当前请求动态构建的 `realm/returnURL`，避免继续把回调写成 localhost。
+
+2. **优化 canonical redirect 触发条件**
+   - 在 `getCanonicalRedirect()` 中新增判断：如果 canonical host 本身是 localhost，则不执行强制 canonical 重定向。
+   - 避免公网域名请求被重定向到 localhost。
+
+3. **新增可观测日志**
+   - 当触发“localhost 配置自动纠偏”时，输出 `[WARN]` 日志，包含配置值与运行时值，便于后续排障。
+
+### 结果
+- 即使历史 `.env` 里残留 localhost 配置，只要用户当前是通过公网域名访问，也会优先使用公网域名作为 OpenID 回调。
+- 可直接规避“授权后跳回 localhost”的高频故障路径。

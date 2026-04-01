@@ -387,6 +387,15 @@ function resolveRequestBaseUrl(req) {
   return normalizedBaseUrl;
 }
 
+function isLocalBaseUrl(rawBaseUrl) {
+  try {
+    const url = new URL(rawBaseUrl);
+    return isLocalHost(url.host);
+  } catch {
+    return false;
+  }
+}
+
 function buildSteamAuthOptions(req, { persistForCallback = false } = {}) {
   const requestBaseUrl = resolveRequestBaseUrl(req);
   const runtimeRealm = `${requestBaseUrl}/`;
@@ -395,8 +404,21 @@ function buildSteamAuthOptions(req, { persistForCallback = false } = {}) {
   const envReturnUrl = STEAM_RETURN_URL || defaultSteamReturnUrl;
 
   const hasExplicitSteamAuthUrl = Boolean(process.env.STEAM_REALM || process.env.STEAM_RETURN_URL);
-  let realm = hasExplicitSteamAuthUrl ? envRealm : runtimeRealm;
-  let returnURL = hasExplicitSteamAuthUrl ? envReturnUrl : runtimeReturnUrl;
+  const explicitAuthTargetsLocalhost = isLocalBaseUrl(envRealm) && isLocalBaseUrl(envReturnUrl);
+  const requestUsesPublicHost = !isLocalBaseUrl(requestBaseUrl);
+  const shouldPreferRuntimeAuthUrl = hasExplicitSteamAuthUrl && explicitAuthTargetsLocalhost && requestUsesPublicHost;
+
+  let realm = hasExplicitSteamAuthUrl && !shouldPreferRuntimeAuthUrl ? envRealm : runtimeRealm;
+  let returnURL = hasExplicitSteamAuthUrl && !shouldPreferRuntimeAuthUrl ? envReturnUrl : runtimeReturnUrl;
+
+  if (shouldPreferRuntimeAuthUrl) {
+    console.warn('[WARN] STEAM_REALM/STEAM_RETURN_URL points to localhost but request is public host, using runtime host for Steam OpenID', {
+      configuredRealm: envRealm,
+      configuredReturnURL: envReturnUrl,
+      runtimeRealm,
+      runtimeReturnURL
+    });
+  }
 
   if (persistForCallback && req.session) {
     req.session.steamAuth = {
@@ -419,6 +441,7 @@ function buildSteamAuthOptions(req, { persistForCallback = false } = {}) {
 const canonicalBaseUrl = new URL(normalizedBaseUrl);
 function getCanonicalRedirect(req) {
   if (!enforceCanonicalHost) return null;
+  if (isLocalHost(canonicalBaseUrl.host)) return null;
   const host = String(req.get('host') ?? '').trim();
   if (!host) return null;
   if (host === canonicalBaseUrl.host) return null;
