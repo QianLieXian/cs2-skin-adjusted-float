@@ -358,10 +358,16 @@ function parseFloatFromInspectResponse(payload) {
     return null;
   }
   const candidates = [
+    payload?.iteminfo?.float,
+    payload?.iteminfo?.wear,
     payload?.iteminfo?.floatvalue,
     payload?.iteminfo?.float_value,
+    payload?.item?.float,
+    payload?.item?.wear,
     payload?.item?.floatvalue,
     payload?.item?.float_value,
+    payload?.float,
+    payload?.wear,
     payload?.floatvalue,
     payload?.float_value
   ];
@@ -387,16 +393,41 @@ function safeDecodeURIComponent(raw = '') {
 }
 
 function parseInspectLinkParams(rawInspectLink = '') {
-  const decoded = safeDecodeURIComponent(rawInspectLink);
-  if (!decoded) return null;
-  const normalized = decoded.replace(/\+/g, ' ');
-  const match = normalized.match(/csgo_econ_action_preview\s+([SM])(\d+)A(\d+)D(\d+)/i);
-  if (!match) return null;
-  const [, type, ownerOrMarketId, assetId, d] = match;
-  const params = { a: assetId, d };
-  if (type.toUpperCase() === 'S') params.s = ownerOrMarketId;
-  if (type.toUpperCase() === 'M') params.m = ownerOrMarketId;
-  return params;
+  const raw = String(rawInspectLink ?? '').trim();
+  if (!raw) return null;
+  const variants = [raw];
+  const decoded = safeDecodeURIComponent(raw);
+  if (decoded && decoded !== raw) variants.push(decoded);
+
+  const parseVariant = (value) => {
+    const normalized = String(value ?? '').replace(/\+/g, ' ');
+    const previewMatch = normalized.match(/(?:csgo_econ_action_preview(?:\s+|%20))([SM])(\d+)A(\d+)D(\d+)/i);
+    if (previewMatch) {
+      const [, type, ownerOrMarketId, assetId, d] = previewMatch;
+      const params = { a: assetId, d };
+      if (type.toUpperCase() === 'S') params.s = ownerOrMarketId;
+      if (type.toUpperCase() === 'M') params.m = ownerOrMarketId;
+      return params;
+    }
+
+    const query = normalized.match(/[?&]a=(\d+).*?[?&]d=(\d+)/i);
+    if (query) {
+      const [, a, d] = query;
+      const params = { a, d };
+      const s = normalized.match(/[?&]s=(\d+)/i);
+      const m = normalized.match(/[?&]m=(\d+)/i);
+      if (s) params.s = s[1];
+      if (m) params.m = m[1];
+      return params;
+    }
+    return null;
+  };
+
+  for (const variant of variants) {
+    const parsed = parseVariant(variant);
+    if (parsed) return parsed;
+  }
+  return null;
 }
 
 async function resolveFloatByInspectParams(params) {
@@ -486,13 +517,10 @@ async function resolveMissingFloatsByBulkInspect(items = []) {
       });
       const payload = response?.data;
       if (!payload || typeof payload !== 'object') continue;
-
+      const parsedByLink = parseBulkInspectFloat(payload);
       for (const link of chunkLinks) {
         const linkParams = parseInspectLinkParams(link);
-        const assetId = linkParams?.a;
-        if (!assetId) continue;
-        const result = payload?.[assetId];
-        const exactFloat = parseFloatFromInspectResponse(result);
+        const exactFloat = parsedByLink.get(link) ?? parsedByLink.get(`asset:${linkParams?.a ?? ''}`);
         if (typeof exactFloat !== 'number') continue;
         for (const index of byInspectLink.get(link) ?? []) {
           items[index] = {
@@ -507,6 +535,47 @@ async function resolveMissingFloatsByBulkInspect(items = []) {
     }
   }
   return items;
+}
+
+function parseBulkInspectFloat(payload) {
+  const byLink = new Map();
+  const byAssetId = new Map();
+
+  const addEntry = (entry = {}, keyHint = '') => {
+    const exactFloat = parseFloatFromInspectResponse(entry);
+    if (typeof exactFloat !== 'number') return;
+    const link = String(entry?.inspectLink ?? entry?.link ?? entry?.url ?? keyHint ?? '').trim();
+    const assetId = String(entry?.assetId ?? entry?.assetid ?? entry?.a ?? '').trim();
+    if (link) byLink.set(link, exactFloat);
+    if (assetId) byAssetId.set(assetId, exactFloat);
+  };
+
+  if (Array.isArray(payload)) {
+    for (const entry of payload) addEntry(entry);
+  } else if (payload && typeof payload === 'object') {
+    for (const [key, value] of Object.entries(payload)) {
+      if (Array.isArray(value)) {
+        for (const nested of value) addEntry(nested, key);
+      } else {
+        addEntry(value, key);
+      }
+    }
+  }
+
+  const resolved = new Map();
+  for (const [link, exactFloat] of byLink.entries()) {
+    resolved.set(link, exactFloat);
+  }
+  for (const [assetId, exactFloat] of byAssetId.entries()) {
+    resolved.set(`asset:${assetId}`, exactFloat);
+    for (const [link] of byLink.entries()) {
+      const linkParams = parseInspectLinkParams(link);
+      if (linkParams?.a === assetId && !resolved.has(link)) {
+        resolved.set(link, exactFloat);
+      }
+    }
+  }
+  return resolved;
 }
 
 async function resolveMissingFloats(items = []) {
@@ -1418,9 +1487,10 @@ function normalizeInspectLink(rawLink = '', steamId = '', assetId = '') {
     .replace(/&amp;/g, '&')
     .trim();
   if (!decoded) return '';
-  return decoded
-    .replace('%owner_steamid%', steamId)
-    .replace('%assetid%', assetId);
+  const cleanedPercent = decoded.replace(/%(?![0-9a-fA-F]{2})/g, '%25');
+  return cleanedPercent
+    .replace(/%owner_steamid%/gi, steamId)
+    .replace(/%assetid%/gi, assetId);
 }
 
 function pickInspectLink(desc = {}, steamId = '', assetId = '') {
@@ -1451,13 +1521,25 @@ async function fetchInventory(steamId, apiKey) {
 }
 
 function parseAssetDescriptionInventoryPayload(payload, steamId) {
-  const descriptions = new Map(
-    (payload?.descriptions ?? []).map((d) => [`${d.classid}_${d.instanceid}`, d])
-  );
+  const descriptions = new Map();
+  for (const d of payload?.descriptions ?? []) {
+    const classId = String(d?.classid ?? '');
+    const instanceId = String(d?.instanceid ?? '0');
+    if (!classId) continue;
+    descriptions.set(`${classId}_${instanceId}`, d);
+    descriptions.set(`${classId}_0`, d);
+    descriptions.set(classId, d);
+  }
   const assets = payload?.assets ?? payload?.items ?? [];
   const items = assets.map((asset) => {
-    const key = `${asset.classid}_${asset.instanceid}`;
-    const desc = descriptions.get(key) ?? asset ?? {};
+    const classId = String(asset?.classid ?? '');
+    const instanceId = String(asset?.instanceid ?? '0');
+    const desc =
+      descriptions.get(`${classId}_${instanceId}`) ??
+      descriptions.get(`${classId}_0`) ??
+      descriptions.get(classId) ??
+      asset ??
+      {};
     const inspectLink = pickInspectLink(desc, steamId, asset.assetid ?? asset.id ?? '');
     const cooldownText = extractCooldownText([...(desc.owner_descriptions ?? []), ...(desc.descriptions ?? [])]);
     const tradable = Number(desc.tradable ?? 1) === 1;
