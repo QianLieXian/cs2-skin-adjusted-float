@@ -17,16 +17,50 @@ function normalizeProxyUrl(raw) {
   }
 }
 
-const proxyUrl = normalizeProxyUrl(
-  process.env.STEAM_PROXY_URL ?? process.env.HTTPS_PROXY ?? process.env.HTTP_PROXY
-);
+function resolveSteamProxyUrl() {
+  const {
+    STEAM_PROXY_URL,
+    STEAM_PROXY_HOST,
+    STEAM_PROXY_PORT,
+    MIXED_PROXY_PORT,
+    CLASH_MIXED_PORT,
+    STEAM_USE_SYSTEM_PROXY,
+    HTTPS_PROXY,
+    HTTP_PROXY
+  } = process.env;
+
+  const explicit = normalizeProxyUrl(STEAM_PROXY_URL);
+  if (explicit) return explicit;
+
+  const port = String(STEAM_PROXY_PORT ?? MIXED_PROXY_PORT ?? CLASH_MIXED_PORT ?? '').trim();
+  if (port) {
+    const host = String(STEAM_PROXY_HOST ?? '127.0.0.1').trim() || '127.0.0.1';
+    const fromPort = normalizeProxyUrl(`http://${host}:${port}`);
+    if (fromPort) return fromPort;
+  }
+
+  const allowSystemProxy = String(STEAM_USE_SYSTEM_PROXY ?? '').toLowerCase() === 'true';
+  if (allowSystemProxy) {
+    return normalizeProxyUrl(HTTPS_PROXY ?? HTTP_PROXY);
+  }
+
+  return null;
+}
+
+const proxyUrl = resolveSteamProxyUrl();
 
 if (proxyUrl) {
   process.env.GLOBAL_AGENT_HTTP_PROXY = proxyUrl;
   process.env.GLOBAL_AGENT_HTTPS_PROXY = proxyUrl;
   await import('global-agent/bootstrap.js');
   console.log(`[INFO] Global proxy enabled for Steam/OpenID requests: ${proxyUrl}`);
-} else if (process.env.STEAM_PROXY_URL || process.env.HTTPS_PROXY || process.env.HTTP_PROXY) {
+} else if (
+  process.env.STEAM_PROXY_URL ||
+  process.env.STEAM_PROXY_PORT ||
+  process.env.MIXED_PROXY_PORT ||
+  process.env.CLASH_MIXED_PORT ||
+  process.env.STEAM_USE_SYSTEM_PROXY === 'true'
+) {
   console.warn('[WARN] Proxy env is set but invalid. Expected format like http://127.0.0.1:7897');
 }
 
