@@ -3,6 +3,44 @@ import net from 'node:net';
 
 dotenv.config();
 
+const LOG_BUFFER_LIMIT = 3000;
+const serverLogBuffer = [];
+const rawConsole = {
+  log: console.log.bind(console),
+  info: console.info.bind(console),
+  warn: console.warn.bind(console),
+  error: console.error.bind(console),
+  debug: console.debug.bind(console)
+};
+
+function formatLogEntry(args) {
+  return args
+    .map((item) => {
+      if (typeof item === 'string') return item;
+      try {
+        return JSON.stringify(item);
+      } catch {
+        return String(item);
+      }
+    })
+    .join(' ');
+}
+
+function writeServerLog(level, args) {
+  const line = `[${new Date().toISOString()}] [${level}] ${formatLogEntry(args)}`;
+  serverLogBuffer.push(line);
+  if (serverLogBuffer.length > LOG_BUFFER_LIMIT) {
+    serverLogBuffer.splice(0, serverLogBuffer.length - LOG_BUFFER_LIMIT);
+  }
+}
+
+for (const level of Object.keys(rawConsole)) {
+  console[level] = (...args) => {
+    writeServerLog(level.toUpperCase(), args);
+    rawConsole[level](...args);
+  };
+}
+
 function normalizeProxyUrl(raw) {
   const value = String(raw ?? '').trim();
   if (!value) return null;
@@ -1043,6 +1081,42 @@ async function fetchInventory(steamId, apiKey) {
   return data?.result?.items ?? [];
 }
 
+async function fetchCommunityInventoryBySteamId(steamId) {
+  const invUrl = `https://steamcommunity.com/inventory/${steamId}/730/2`;
+  const { data } = await getWithDirectFallback(invUrl, {
+    params: { l: 'english', count: 5000 },
+    headers: {
+      Referer: 'https://steamcommunity.com/',
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+    }
+  });
+
+  const descriptions = new Map(
+    (data?.descriptions ?? []).map((d) => [`${d.classid}_${d.instanceid}`, d])
+  );
+
+  return (data?.assets ?? []).map((asset) => {
+    const key = `${asset.classid}_${asset.instanceid}`;
+    const desc = descriptions.get(key) ?? {};
+    const inspectAction = (desc.actions ?? []).find((a) => /Inspect in Game/i.test(a.name));
+    const inspectLink = (inspectAction?.link ?? '')
+      .replace('%owner_steamid%', steamId)
+      .replace('%assetid%', asset.assetid);
+    const cooldownText = extractCooldownText([...(desc.owner_descriptions ?? []), ...(desc.descriptions ?? [])]);
+    const tradable = Number(desc.tradable ?? 1) === 1;
+    return {
+      id: String(asset.assetid),
+      marketHashName: desc.market_hash_name ?? '',
+      iconUrl: desc.icon_url ? `https://community.fastly.steamstatic.com/economy/image/${desc.icon_url}/96fx96f` : '',
+      inspectLink,
+      tradable,
+      cooldown: !tradable || cooldownText.length > 0,
+      cooldownText,
+      floatValue: null
+    };
+  });
+}
+
 function resolveSteamApiKey(req) {
   const keyFromQuery = String(req?.query?.apiKey ?? '').trim();
   const keyFromHeader = String(req?.headers?.['x-steam-api-key'] ?? '').trim();
@@ -1052,36 +1126,40 @@ function resolveSteamApiKey(req) {
 
 app.get('/api/inventory', requireAuth, async (req, res) => {
   const apiKey = resolveSteamApiKey(req);
-  if (!apiKey) {
-    return res.status(503).json({
-      error: 'Missing STEAM_API_KEY',
-      details: '请在后端 .env 配置 STEAM_API_KEY，或在前端填写 Steam Web API Key 后重试。',
-      source: 'auth',
-      total: 0,
-      cooldownCount: 0,
-      items: []
-    });
-  }
-
   try {
-    const items = await fetchInventory(req.user.steamId, apiKey);
-    const normalized = items
-      .filter((it) => it.inventory > 0)
-      .slice(0, 10)
-      .map((it) => ({
-        id: String(it.id),
-        marketHashName: it.market_hash_name ?? '',
-        floatValue: typeof it.floatvalue === 'number' ? it.floatvalue : null,
-        tradable: true,
-        cooldown: false,
-        cooldownText: []
-      }));
+    let source = 'auth';
+    let resultItems = [];
+    let note = '通过 Steam Key 库存接口获取数据。';
 
-    const resultItems = normalizeInventory(normalized);
+    if (apiKey) {
+      const items = await fetchInventory(req.user.steamId, apiKey);
+      const normalized = items
+        .filter((it) => it.inventory > 0)
+        .map((it) => ({
+          id: String(it.id),
+          marketHashName: it.market_hash_name ?? '',
+          floatValue: typeof it.floatvalue === 'number' ? it.floatvalue : null,
+          tradable: true,
+          cooldown: false,
+          cooldownText: []
+        }));
+      resultItems = normalizeInventory(normalized);
+    }
+
+    if (resultItems.length === 0) {
+      const communityItems = await fetchCommunityInventoryBySteamId(req.user.steamId);
+      resultItems = normalizeInventory(communityItems);
+      source = apiKey ? 'auth_fallback_community' : 'community';
+      note = apiKey
+        ? 'Steam Key 接口返回 0 件，已自动回退到 community 库存接口。'
+        : '未提供 Steam API Key，已使用 community 库存接口。';
+    }
+
     res.json({
-      note: 'Steam 官方库存接口通常不直接返回 float；你可将 floatvalue 字段替换为 CSFloat 检测结果。',
+      note,
+      apiKeyProvided: Boolean(apiKey),
       inspectApi: `${CSFLOAT_INSPECT_API}/?url=<inspect_link>`,
-      source: 'auth',
+      source,
       total: resultItems.length,
       cooldownCount: resultItems.filter((it) => it.cooldown).length,
       items: resultItems
@@ -1096,6 +1174,13 @@ app.get('/api/inventory', requireAuth, async (req, res) => {
       items: []
     });
   }
+});
+
+app.get('/api/logs/export', (_req, res) => {
+  const body = `${serverLogBuffer.join('\n')}\n`;
+  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="steam-tradeup-server-${Date.now()}.log"`);
+  res.send(body);
 });
 
 async function fetchPublicInventoryByTradeUrl(tradeUrl) {

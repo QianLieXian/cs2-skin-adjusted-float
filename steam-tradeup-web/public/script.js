@@ -2,12 +2,15 @@ const API = {
   steamLogin: '/api/auth/steam',
   session: '/api/session',
   inventory: '/api/inventory',
-  publicInventory: '/api/inventory/public'
+  publicInventory: '/api/inventory/public',
+  exportLogs: '/api/logs/export'
 };
 
 const ui = {
   steamLoginBtn: document.getElementById('steamLoginBtn'),
+  refreshInventoryBtn: document.getElementById('refreshInventoryBtn'),
   loadDemoBtn: document.getElementById('loadDemoBtn'),
+  exportLogsBtn: document.getElementById('exportLogsBtn'),
   loadByTradeUrlBtn: document.getElementById('loadByTradeUrlBtn'),
   tradeUrlInput: document.getElementById('tradeUrlInput'),
   steamApiKeyInput: document.getElementById('steamApiKeyInput'),
@@ -354,23 +357,58 @@ async function tryLoadSession() {
       return;
     }
     ui.authStatus.textContent = `已登录 Steam: ${session.user.personaName} (${session.user.steamId})`;
-    const query = new URLSearchParams();
-    const apiKey = getSteamApiKey();
-    if (apiKey) query.set('apiKey', apiKey);
-    const inventoryUrl = query.size > 0 ? `${API.inventory}?${query.toString()}` : API.inventory;
-    const invRes = await fetch(inventoryUrl);
-    const invResp = await invRes.json();
-    inventoryItems = invResp.items || [];
-    if (!invRes.ok) {
-      const reason = invResp?.details || invResp?.error || '读取失败';
-      ui.authStatus.textContent += `\n库存读取失败：${reason}`;
-      renderInventoryMeta(invResp);
-      return;
-    }
-    ui.authStatus.textContent += `\n已读取库存材料 ${inventoryItems.length} 件`;
-    renderInventoryMeta(invResp);
+    await refreshAuthInventory({ appendStatus: true });
   } catch {
     ui.authStatus.textContent = '未部署后端，当前仅可使用示例库存。';
+  }
+}
+
+async function refreshAuthInventory({ appendStatus = false } = {}) {
+  const query = new URLSearchParams();
+  const apiKey = getSteamApiKey();
+  if (apiKey) query.set('apiKey', apiKey);
+  const inventoryUrl = query.size > 0 ? `${API.inventory}?${query.toString()}` : API.inventory;
+  const invRes = await fetch(inventoryUrl);
+  const invResp = await invRes.json();
+  inventoryItems = invResp.items || [];
+  if (!invRes.ok) {
+    const reason = invResp?.details || invResp?.error || '读取失败';
+    if (appendStatus) {
+      ui.authStatus.textContent += `\n库存读取失败：${reason}`;
+    } else {
+      ui.authStatus.textContent = `库存读取失败：${reason}`;
+    }
+    renderInventoryMeta(invResp);
+    return;
+  }
+  if (appendStatus) {
+    ui.authStatus.textContent += `\n已读取库存材料 ${inventoryItems.length} 件`;
+  } else {
+    ui.authStatus.textContent = `已刷新库存：${inventoryItems.length} 件`;
+  }
+  renderInventoryMeta(invResp);
+}
+
+async function exportBackendLogs() {
+  try {
+    const resp = await fetch(API.exportLogs);
+    if (!resp.ok) {
+      const data = await resp.json().catch(() => ({}));
+      throw new Error(data?.details || data?.error || '导出失败');
+    }
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const now = new Date().toISOString().replace(/[:.]/g, '-');
+    a.href = url;
+    a.download = `steam-tradeup-server-${now}.log`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    ui.authStatus.textContent += '\n已导出后端日志。';
+  } catch (error) {
+    ui.authStatus.textContent += `\n导出日志失败：${error.message}`;
   }
 }
 
@@ -445,8 +483,12 @@ ui.steamLoginBtn.addEventListener('click', () => {
   loginUrl.searchParams.set('origin', window.location.origin);
   window.location.href = loginUrl.toString();
 });
+ui.refreshInventoryBtn.addEventListener('click', () => {
+  refreshAuthInventory();
+});
 ui.loadDemoBtn.addEventListener('click', loadDemoInventory);
 ui.loadByTradeUrlBtn.addEventListener('click', loadByTradeUrl);
+ui.exportLogsBtn.addEventListener('click', exportBackendLogs);
 ui.collectionSelect.addEventListener('change', refreshRarityOptions);
 ui.raritySelect.addEventListener('change', refreshSkinOptions);
 ui.skinSelect.addEventListener('change', refreshSelectedHint);
