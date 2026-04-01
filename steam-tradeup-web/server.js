@@ -167,7 +167,7 @@ if (proxyUrl) {
   process.env.CLASH_MIXED_PORT ||
   process.env.STEAM_USE_SYSTEM_PROXY === 'true'
 ) {
-  console.warn('[WARN] Proxy env is set but invalid. Expected formats like http://127.0.0.1:25561 or socks5://127.0.0.1:25561');
+  console.warn('[WARN] Proxy env is set but invalid. Expected formats like http://127.0.0.1:26561 or socks5://127.0.0.1:26561');
 }
 
 // 注意：不再清理用户的代理环境变量，避免破坏用户本机代理链路。
