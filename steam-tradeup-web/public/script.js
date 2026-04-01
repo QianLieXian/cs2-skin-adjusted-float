@@ -247,9 +247,11 @@ function reverseTradeup(targetFloat, outputSkin, inventory, recipeCount, topN = 
   const skinRangeMap = new Map(
     skinData.skins.map((s) => [normalizeSkinLookupName(s.name).toLowerCase(), { minFloat: s.minFloat, maxFloat: s.maxFloat }])
   );
+  const previousRarity = RARITY_ORDER[RARITY_ORDER.indexOf(outputSkin.rarity) - 1];
+  if (!previousRarity) return [];
 
   const candidates = inventory
-    .filter((it) => it.eligibleForTradeup !== false)
+    .filter((it) => it.eligibleForTradeup !== false && it.rarity === previousRarity)
     .map((it) => {
       const normalized = normalizeInputFloat(it, skinRangeMap);
       return normalized === null ? null : { ...it, normalized };
@@ -305,7 +307,11 @@ async function loadSkinData() {
 
 function renderResult(rows, targetFloat, outputSkin, recipeCount) {
   if (!rows.length) {
-    ui.result.innerHTML = '<p class="warn">暂无可计算结果：请确认库存里有浮点值、且数量满足配方件数，并且目标磨损在该目标饰品范围内。</p>';
+    const previousRarity = RARITY_ORDER[RARITY_ORDER.indexOf(outputSkin.rarity) - 1];
+    const rarityHint = previousRarity
+      ? `当前目标品级需要使用同一输入品级（${RARITY_ZH[previousRarity] ?? previousRarity}）材料。`
+      : '该目标品级没有可用于汰换的下一级输入材料。';
+    ui.result.innerHTML = `<p class="warn">暂无可计算结果：请确认库存里有浮点值、数量满足配方件数，且输入材料品级符合汰换规则。${rarityHint}</p>`;
     return;
   }
 
@@ -407,13 +413,15 @@ function renderInventoryMeta(meta) {
   const total = Number(meta.total ?? inventoryItems.length);
   const materialCount = Number(meta.materialCount ?? inventoryItems.filter((it) => it.eligibleForTradeup !== false).length);
   const missingFloatCount = Number(meta.missingFloatCount ?? inventoryItems.filter((it) => typeof it.floatValue !== 'number').length);
+  const exactFloatCount = Number(meta.exactFloatCount ?? inventoryItems.filter((it) => ['api', 'csfloat_inspect'].includes(it.floatSource)).length);
+  const estimatedFloatCount = Number(meta.estimatedFloatCount ?? inventoryItems.filter((it) => it.floatSource === 'estimated_from_exterior').length);
   const dictionaryMatchedCount = Number(meta.dictionaryMatchedCount ?? inventoryItems.filter((it) => it.collection && it.rarity).length);
   const listHtml = inventoryItems.slice(0, 40).map((it) => {
     const skin = skinsByName.get(normalizeSkinLookupName(it.marketHashName || '').toLowerCase());
     const rarityClass = skin ? (RARITY_CLASS[skin.rarity] ?? '') : '';
     const breadcrumb = skin ? makeBreadcrumb(skin) : `未知收藏 / 未知品质 / ${localizeSkinName(it.marketHashName || '未知饰品')}`;
     const floatLabel = typeof it.floatValue === 'number'
-      ? `float ${fmt16(it.floatValue)}${it.floatSource === 'estimated_from_exterior' ? '（估算）' : ''}`
+      ? `float ${fmt16(it.floatValue)}${it.floatSource === 'estimated_from_exterior' ? '（估算）' : '（精确）'}`
       : 'float 缺失';
     const stateTags = [
       it.cooldown ? '<span class="tag warn">交易冷却/限制</span>' : '<span class="tag">可交易</span>',
@@ -437,6 +445,8 @@ function renderInventoryMeta(meta) {
       可用于炼金：<strong>${materialCount}</strong>，
       冷却/限制物品：<strong class="cooldown">${cooldownCount}</strong>，
       字典命中：<strong>${dictionaryMatchedCount}</strong>，
+      精确 float：<strong>${exactFloatCount}</strong>，
+      估算 float：<strong>${estimatedFloatCount}</strong>，
       float 缺失：<strong>${missingFloatCount}</strong>
     </div>
     ${listHtml ? `<div class="inv-list">${listHtml}</div>` : ''}
