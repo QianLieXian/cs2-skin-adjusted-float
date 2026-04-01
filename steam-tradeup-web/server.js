@@ -79,7 +79,12 @@ function resolveSteamProxyCandidates() {
     npm_config_proxy
   ];
 
-  const fixedPorts = [STEAM_PROXY_PORT, MIXED_PROXY_PORT, CLASH_MIXED_PORT]
+  const fixedPorts = [
+    STEAM_PROXY_PORT,
+    MIXED_PROXY_PORT,
+    CLASH_MIXED_PORT,
+    STEAM_PROXY_PORT || MIXED_PROXY_PORT || CLASH_MIXED_PORT ? null : '26561'
+  ]
     .map((it) => String(it ?? '').trim())
     .filter(Boolean);
 
@@ -186,7 +191,7 @@ const {
   STEAM_API_KEY,
   STEAM_REALM = `${BASE_URL}/`,
   STEAM_RETURN_URL = `${BASE_URL}/api/auth/steam/return`,
-  STEAM_OPENID_PROVIDER = 'https://steamcommunity.com/openid/login',
+  STEAM_OPENID_PROVIDER = 'https://steamcommunity.com/openid',
   STEAM_WEB_API = 'https://api.steampowered.com',
   CSFLOAT_INSPECT_API = 'https://api.csfloat.com'
 } = process.env;
@@ -196,28 +201,28 @@ const enforceCanonicalHost =
 
 function normalizeOpenIdProvider(raw) {
   const value = String(raw ?? '').trim();
-  if (!value) return 'https://steamcommunity.com/openid/login';
+  if (!value) return 'https://steamcommunity.com/openid';
   try {
     const url = new URL(value);
     const normalizedPath = url.pathname.replace(/\/+$/, '');
-    if (normalizedPath === '/openid') {
-      url.pathname = '/openid/login';
+    if (normalizedPath === '/openid/login') {
+      url.pathname = '/openid';
     }
     url.search = '';
     url.hash = '';
     return url.toString().replace(/\/$/, '');
   } catch {
-    return 'https://steamcommunity.com/openid/login';
+    return 'https://steamcommunity.com/openid';
   }
 }
 
 function getOpenIdProviderCandidates(raw) {
   const primary = normalizeOpenIdProvider(raw);
   const candidates = [primary];
-  const fallback = primary.endsWith('/openid/login')
-    ? primary.replace(/\/openid\/login$/, '/openid')
-    : primary.endsWith('/openid')
-      ? `${primary}/login`
+  const fallback = primary.endsWith('/openid')
+    ? `${primary}/login`
+    : primary.endsWith('/openid/login')
+      ? primary.replace(/\/openid\/login$/, '/openid')
       : null;
   if (fallback && !candidates.includes(fallback)) candidates.push(fallback);
   return candidates;
@@ -254,7 +259,8 @@ if (!STEAM_API_KEY) {
 }
 
 const axiosConfig = {
-  timeout: 25000
+  timeout: 25000,
+  proxy: false
 };
 
 if (proxyUrl) {
@@ -265,6 +271,23 @@ if (proxyUrl) {
 }
 
 const http = axios.create(axiosConfig);
+
+
+async function getWithDirectFallback(url, config = {}) {
+  try {
+    return await http.get(url, config);
+  } catch (error) {
+    const code = String(error?.code ?? '');
+    const isConnectionTimeout = ['ETIMEDOUT', 'ECONNRESET', 'ECONNREFUSED', 'EHOSTUNREACH', 'ENETUNREACH'].includes(code);
+    if (!proxyUrl || !isConnectionTimeout) throw error;
+    console.warn(`[WARN] Request via proxy failed (${code}), retry direct connection: ${url}`);
+    return axios.get(url, {
+      ...config,
+      timeout: axiosConfig.timeout,
+      proxy: false
+    });
+  }
+}
 
 passport.serializeUser((user, done) => done(null, user));
 passport.deserializeUser((obj, done) => done(null, obj));
@@ -570,7 +593,7 @@ async function fetchPublicInventoryByTradeUrl(tradeUrl) {
   };
   let data;
   try {
-    const response = await http.get(invUrl, {
+    const response = await getWithDirectFallback(invUrl, {
       params: baseParams,
       headers: baseHeaders
     });
@@ -579,7 +602,7 @@ async function fetchPublicInventoryByTradeUrl(tradeUrl) {
     const statusCode = error?.response?.status;
     if (statusCode === 400 && parsed.token) {
       try {
-        const retryResponse = await http.get(invUrl, {
+        const retryResponse = await getWithDirectFallback(invUrl, {
           params: {
             ...baseParams,
             trade_offer_access_token: parsed.token
