@@ -10,6 +10,8 @@
 - 提供 Steam 登录与库存读取接口（需要配置 Steam API Key）。
 - 支持直接粘贴交易链接读取公开库存（无需 Steam 登录），并标记交易冷却/限制中的物品。
 - 前端支持直接填写 Steam Web API Key（会保存在浏览器 localStorage，并作为请求参数发送给当前后端）。
+- 前端支持填写 `SteamID64 + Steam Web API Key` 后一键直连读取库存（无需 Steam 登录会话）。
+- float 展示为“仅精确值”：只接受 API 原始值或 inspect 查询值，不再使用外观估算值。
 
 ## 快速启动
 
@@ -46,6 +48,7 @@ STEAM_API_KEY=你的SteamWebAPIKey
 
 另外，页面新增：
 - **“刷新已登录库存”**：不重新登录，直接重拉库存；
+- **“通过 API Key 直接读取库存”**：填写 SteamID64 + API Key 后直接读取；
 - **“导出后端日志”**：一键下载当前运行期日志，便于排障。
 
 ### `InternalOpenIDError: Failed to verify assertion`
