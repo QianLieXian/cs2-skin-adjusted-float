@@ -261,6 +261,38 @@
 
 ---
 
+## 2026-04-01（再修复：`Failed to verify assertion` 持续失败）
+
+### 问题现象
+- 日志中 `realm`、`returnURL`、`openid.return_to` 看起来一致，仍报：
+  - `InternalOpenIDError: Failed to verify assertion`
+- 且“重试 openid.return_to + stateless”后依然失败。
+
+### 本轮修复
+1. **新增 OpenID 手动校验兜底（check_authentication）**
+   - 在 Passport/OpenID 回调失败且重试后仍失败时，新增服务端兜底：
+     - 从回调 query 提取全部 `openid.*` 参数；
+     - 将 `openid.mode` 改写为 `check_authentication`；
+     - 向 `https://steamcommunity.com/openid/login` 发起服务端校验；
+     - 仅当响应包含 `is_valid:true` 且 `claimed_id` 可解析出合法 SteamID 时放行登录。
+   - 目的：绕开第三方库在特定反代/参数场景下的断言校验兼容性问题，同时保留“必须由 Steam 服务器确认”的安全边界。
+
+2. **补充 POST 请求代理失败直连回退**
+   - 新增 `postWithDirectFallback()`，与 GET 一样在代理链路 `ETIMEDOUT/ECONNRESET/ECONNREFUSED/EHOSTUNREACH/ENETUNREACH` 时自动直连重试一次。
+   - 避免手动校验阶段被本地代理抖动再次卡死。
+
+3. **增强错误可观测性**
+   - 在 OpenID 失败日志与 401 JSON 中新增 `cause` 字段（优先输出底层 openid/cause message），便于区分：
+     - return_to/realm 不匹配；
+     - nonce/重放问题；
+     - OP 校验链路异常。
+
+### 结果
+- 当 Passport/OpenID 库继续抛出 `Failed to verify assertion` 时，系统会自动尝试“Steam 官方 check_authentication”兜底。
+- 若 Steam 侧确认有效，用户可继续完成登录，避免再次卡在同一错误链路。
+
+---
+
 ## 2026-04-01（再次补强：`Failed to verify assertion` 仍偶发）
 
 ### 问题现象
