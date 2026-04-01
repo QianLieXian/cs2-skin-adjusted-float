@@ -1,0 +1,2414 @@
+{
+  "generatedAt": "2026-04-01T02:40:52.577Z",
+  "source": "https://raw.githubusercontent.com/ByMykel/CSGO-API/main/public/api/en/skins.json",
+  "collections": [
+    "The Harlequin Collection",
+    "The Ascent Collection",
+    "The Boreal Collection",
+    "The Radiant Collection",
+    "The Graphic Design Collection"
+  ],
+  "totalSkins": 120,
+  "skins": [
+    {
+      "id": "skin-d5c4cc36d66a",
+      "name": "M4A1-S | Stratosphere",
+      "weapon": "M4A1-S",
+      "rarity": "Classified",
+      "minFloat": 0,
+      "maxFloat": 0.8,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Ascent Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-6d3d5d849392",
+      "name": "Galil AR | Grey Smoke",
+      "weapon": "Galil AR",
+      "rarity": "Consumer Grade",
+      "minFloat": 0,
+      "maxFloat": 0.6,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Ascent Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-9973f96c93b5",
+      "name": "MAC-10 | Storm Camo",
+      "weapon": "MAC-10",
+      "rarity": "Consumer Grade",
+      "minFloat": 0,
+      "maxFloat": 0.637288,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Ascent Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-e6401ef3f5b7",
+      "name": "MP5-SD | Lime Hex",
+      "weapon": "MP5-SD",
+      "rarity": "Consumer Grade",
+      "minFloat": 0,
+      "maxFloat": 0.638225,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Ascent Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-53f83414cf17",
+      "name": "MP9 | Buff Blue",
+      "weapon": "MP9",
+      "rarity": "Consumer Grade",
+      "minFloat": 0,
+      "maxFloat": 0.7,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Ascent Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-4aa647360d8e",
+      "name": "P250 | Plum Netting",
+      "weapon": "P250",
+      "rarity": "Consumer Grade",
+      "minFloat": 0,
+      "maxFloat": 0.6,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Ascent Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-23a748f6b597",
+      "name": "P90 | Blue Tac",
+      "weapon": "P90",
+      "rarity": "Consumer Grade",
+      "minFloat": 0,
+      "maxFloat": 0.6,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Ascent Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-58d507811bd8",
+      "name": "R8 Revolver | Cobalt Grip",
+      "weapon": "R8 Revolver",
+      "rarity": "Consumer Grade",
+      "minFloat": 0,
+      "maxFloat": 0.80339,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Ascent Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-f2dd022eab22",
+      "name": "Sawed-Off | Runoff",
+      "weapon": "Sawed-Off",
+      "rarity": "Consumer Grade",
+      "minFloat": 0,
+      "maxFloat": 0.780822,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Ascent Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-aa996ba531f1",
+      "name": "SG 553 | Night Camo",
+      "weapon": "SG 553",
+      "rarity": "Consumer Grade",
+      "minFloat": 0,
+      "maxFloat": 0.795222,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Ascent Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-080ca3f34d18",
+      "name": "SSG 08 | Grey Smoke",
+      "weapon": "SSG 08",
+      "rarity": "Consumer Grade",
+      "minFloat": 0,
+      "maxFloat": 0.6,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Ascent Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-6c86170a7e6d",
+      "name": "Tec-9 | Blue Blast",
+      "weapon": "Tec-9",
+      "rarity": "Consumer Grade",
+      "minFloat": 0,
+      "maxFloat": 0.8,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Ascent Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-b6116401828b",
+      "name": "Dual Berettas | Rose Nacre",
+      "weapon": "Dual Berettas",
+      "rarity": "Industrial Grade",
+      "minFloat": 0,
+      "maxFloat": 0.7,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Ascent Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-7b6d780443fc",
+      "name": "Five-SeveN | Sky Blue",
+      "weapon": "Five-SeveN",
+      "rarity": "Industrial Grade",
+      "minFloat": 0,
+      "maxFloat": 0.6,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Ascent Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-69fcaf121180",
+      "name": "Galil AR | Robin's Egg",
+      "weapon": "Galil AR",
+      "rarity": "Industrial Grade",
+      "minFloat": 0,
+      "maxFloat": 0.6,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Ascent Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-ad93599cbfb9",
+      "name": "Glock-18 | Ocean Topo",
+      "weapon": "Glock-18",
+      "rarity": "Industrial Grade",
+      "minFloat": 0,
+      "maxFloat": 0.6,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Ascent Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-c096d50b4039",
+      "name": "M4A4 | Naval Shred Camo",
+      "weapon": "M4A4",
+      "rarity": "Industrial Grade",
+      "minFloat": 0,
+      "maxFloat": 0.6,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Ascent Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-2891a487ea6c",
+      "name": "Negev | Sour Grapes",
+      "weapon": "Negev",
+      "rarity": "Industrial Grade",
+      "minFloat": 0,
+      "maxFloat": 0.8,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Ascent Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-d219c8f3fe3b",
+      "name": "Nova | Turquoise Pour",
+      "weapon": "Nova",
+      "rarity": "Industrial Grade",
+      "minFloat": 0,
+      "maxFloat": 0.678431,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Ascent Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-8f8277af6b54",
+      "name": "XM1014 | Gum Wall Camo",
+      "weapon": "XM1014",
+      "rarity": "Industrial Grade",
+      "minFloat": 0,
+      "maxFloat": 0.6,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Ascent Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-55264b2a150c",
+      "name": "Zeus x27 | Electric Blue",
+      "weapon": "Zeus x27",
+      "rarity": "Industrial Grade",
+      "minFloat": 0,
+      "maxFloat": 0.75,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Ascent Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-96bbc2859318",
+      "name": "Desert Eagle | Mint Fan",
+      "weapon": "Desert Eagle",
+      "rarity": "Mil-Spec Grade",
+      "minFloat": 0,
+      "maxFloat": 0.6,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Ascent Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-97defdf0ce4c",
+      "name": "FAMAS | Yeti Camo",
+      "weapon": "FAMAS",
+      "rarity": "Mil-Spec Grade",
+      "minFloat": 0,
+      "maxFloat": 0.7,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Ascent Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-e400418cedad",
+      "name": "MP9 | Cobalt Paisley",
+      "weapon": "MP9",
+      "rarity": "Mil-Spec Grade",
+      "minFloat": 0,
+      "maxFloat": 0.65,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Ascent Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-e010a1443ce8",
+      "name": "P2000 | Royal Baroque",
+      "weapon": "P2000",
+      "rarity": "Mil-Spec Grade",
+      "minFloat": 0,
+      "maxFloat": 0.6,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Ascent Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-d58c4622251a",
+      "name": "P90 | Reef Grief",
+      "weapon": "P90",
+      "rarity": "Mil-Spec Grade",
+      "minFloat": 0,
+      "maxFloat": 0.6,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Ascent Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-dba8faaa2d7e",
+      "name": "AK-47 | Midnight Laminate",
+      "weapon": "AK-47",
+      "rarity": "Restricted",
+      "minFloat": 0,
+      "maxFloat": 0.75,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Ascent Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-b88bf24d8569",
+      "name": "USP-S | Royal Guard",
+      "weapon": "USP-S",
+      "rarity": "Restricted",
+      "minFloat": 0,
+      "maxFloat": 0.6,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Ascent Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-b889cea4b0a8",
+      "name": "AWP | Green Energy",
+      "weapon": "AWP",
+      "rarity": "Classified",
+      "minFloat": 0,
+      "maxFloat": 0.75,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Boreal Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-5dea0b69d286",
+      "name": "AUG | Commando Company",
+      "weapon": "AUG",
+      "rarity": "Consumer Grade",
+      "minFloat": 0,
+      "maxFloat": 0.65,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Boreal Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-eb2b0b6bcfd8",
+      "name": "FAMAS | Palm",
+      "weapon": "FAMAS",
+      "rarity": "Consumer Grade",
+      "minFloat": 0,
+      "maxFloat": 0.75,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Boreal Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-0581556d2987",
+      "name": "G3SG1 | Green Cell",
+      "weapon": "G3SG1",
+      "rarity": "Consumer Grade",
+      "minFloat": 0,
+      "maxFloat": 0.65,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Boreal Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-bfdabc8fd9fa",
+      "name": "M249 | Sage Camo",
+      "weapon": "M249",
+      "rarity": "Consumer Grade",
+      "minFloat": 0,
+      "maxFloat": 0.6,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Boreal Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-e523f734a2d9",
+      "name": "MAG-7 | Copper Oxide",
+      "weapon": "MAG-7",
+      "rarity": "Consumer Grade",
+      "minFloat": 0,
+      "maxFloat": 0.65,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Boreal Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-8aaf995160d8",
+      "name": "MP9 | Pine",
+      "weapon": "MP9",
+      "rarity": "Consumer Grade",
+      "minFloat": 0,
+      "maxFloat": 0.7,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Boreal Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-1fe65cf7199d",
+      "name": "Negev | Raw Ceramic",
+      "weapon": "Negev",
+      "rarity": "Consumer Grade",
+      "minFloat": 0,
+      "maxFloat": 0.75,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Boreal Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-9ff7bce8cb4e",
+      "name": "P250 | Copper Oxide",
+      "weapon": "P250",
+      "rarity": "Consumer Grade",
+      "minFloat": 0,
+      "maxFloat": 0.65,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Boreal Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-06a89c7cb037",
+      "name": "SSG 08 | Green Ceramic",
+      "weapon": "SSG 08",
+      "rarity": "Consumer Grade",
+      "minFloat": 0,
+      "maxFloat": 0.75,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Boreal Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-467b73d88989",
+      "name": "Tec-9 | Raw Ceramic",
+      "weapon": "Tec-9",
+      "rarity": "Consumer Grade",
+      "minFloat": 0,
+      "maxFloat": 0.75,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Boreal Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-66e54b85c15f",
+      "name": "UMP-45 | Green Swirl",
+      "weapon": "UMP-45",
+      "rarity": "Consumer Grade",
+      "minFloat": 0,
+      "maxFloat": 0.7,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Boreal Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-f7171c75986f",
+      "name": "Zeus x27 | Swamp DDPAT",
+      "weapon": "Zeus x27",
+      "rarity": "Consumer Grade",
+      "minFloat": 0,
+      "maxFloat": 0.6,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Boreal Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-cdb08bfe13d3",
+      "name": "AK-47 | VariCamo Grey",
+      "weapon": "AK-47",
+      "rarity": "Industrial Grade",
+      "minFloat": 0,
+      "maxFloat": 0.671875,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Boreal Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-6467891391e9",
+      "name": "Dual Berettas | Polished Malachite",
+      "weapon": "Dual Berettas",
+      "rarity": "Industrial Grade",
+      "minFloat": 0,
+      "maxFloat": 0.8,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Boreal Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-1caaee847d10",
+      "name": "Galil AR | Acid Dart",
+      "weapon": "Galil AR",
+      "rarity": "Industrial Grade",
+      "minFloat": 0,
+      "maxFloat": 0.6,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Boreal Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-1086e586f1bf",
+      "name": "MAC-10 | Acid Hex",
+      "weapon": "MAC-10",
+      "rarity": "Industrial Grade",
+      "minFloat": 0,
+      "maxFloat": 0.58,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Boreal Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-fce2182cb25e",
+      "name": "P2000 | Marsh",
+      "weapon": "P2000",
+      "rarity": "Industrial Grade",
+      "minFloat": 0,
+      "maxFloat": 0.6,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Boreal Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-566d676ca07d",
+      "name": "P90 | Mustard Gas",
+      "weapon": "P90",
+      "rarity": "Industrial Grade",
+      "minFloat": 0,
+      "maxFloat": 0.63,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Boreal Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-cf53e2922c14",
+      "name": "R8 Revolver | Leafhopper",
+      "weapon": "R8 Revolver",
+      "rarity": "Industrial Grade",
+      "minFloat": 0,
+      "maxFloat": 0.65098,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Boreal Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-f57cd46a7078",
+      "name": "SSG 08 | Tiger Tear",
+      "weapon": "SSG 08",
+      "rarity": "Industrial Grade",
+      "minFloat": 0,
+      "maxFloat": 0.55,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Boreal Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-a493194726cd",
+      "name": "Tec-9 | Garter-9",
+      "weapon": "Tec-9",
+      "rarity": "Industrial Grade",
+      "minFloat": 0,
+      "maxFloat": 0.7,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Boreal Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-e027a11f0d46",
+      "name": "AK-47 | Wintergreen",
+      "weapon": "AK-47",
+      "rarity": "Mil-Spec Grade",
+      "minFloat": 0,
+      "maxFloat": 0.75,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Boreal Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-efe243521c5e",
+      "name": "MAC-10 | Poplar Thicket",
+      "weapon": "MAC-10",
+      "rarity": "Mil-Spec Grade",
+      "minFloat": 0,
+      "maxFloat": 0.68,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Boreal Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-279e913dd981",
+      "name": "MP5-SD | Gold Leaf",
+      "weapon": "MP5-SD",
+      "rarity": "Mil-Spec Grade",
+      "minFloat": 0,
+      "maxFloat": 0.6,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Boreal Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-ea3238e578e7",
+      "name": "USP-S | Tropical Breeze",
+      "weapon": "USP-S",
+      "rarity": "Mil-Spec Grade",
+      "minFloat": 0,
+      "maxFloat": 0.55,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Boreal Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-17ba4cfaa721",
+      "name": "XM1014 | Copperflage",
+      "weapon": "XM1014",
+      "rarity": "Mil-Spec Grade",
+      "minFloat": 0,
+      "maxFloat": 0.6,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Boreal Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-27a242e44f6b",
+      "name": "Glock-18 | Glockingbird",
+      "weapon": "Glock-18",
+      "rarity": "Restricted",
+      "minFloat": 0,
+      "maxFloat": 0.67,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Boreal Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-25e2a5c0a7df",
+      "name": "M4A4 | Sheet Lightning",
+      "weapon": "M4A4",
+      "rarity": "Restricted",
+      "minFloat": 0,
+      "maxFloat": 0.75,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Boreal Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-150eda31902a",
+      "name": "AUG | Lil' Pig",
+      "weapon": "AUG",
+      "rarity": "Classified",
+      "minFloat": 0,
+      "maxFloat": 0.8,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Graphic Design Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-544a3d0462c1",
+      "name": "Desert Eagle | Starcade",
+      "weapon": "Desert Eagle",
+      "rarity": "Classified",
+      "minFloat": 0,
+      "maxFloat": 0.75,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Graphic Design Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-1c7cbe2db8f1",
+      "name": "AWP | CMYK",
+      "weapon": "AWP",
+      "rarity": "Covert",
+      "minFloat": 0,
+      "maxFloat": 0.8,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Graphic Design Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-a3b45201bc37",
+      "name": "FAMAS | Halftone Wash",
+      "weapon": "FAMAS",
+      "rarity": "Industrial Grade",
+      "minFloat": 0,
+      "maxFloat": 0.5,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Graphic Design Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-fb94d237b512",
+      "name": "Galil AR | NV",
+      "weapon": "Galil AR",
+      "rarity": "Industrial Grade",
+      "minFloat": 0,
+      "maxFloat": 0.47,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Graphic Design Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-4b8b1ad9100f",
+      "name": "M249 | Spectrogram",
+      "weapon": "M249",
+      "rarity": "Industrial Grade",
+      "minFloat": 0,
+      "maxFloat": 0.5,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Graphic Design Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-59233f3c3dcf",
+      "name": "MP7 | Astrolabe",
+      "weapon": "MP7",
+      "rarity": "Industrial Grade",
+      "minFloat": 0,
+      "maxFloat": 1,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Graphic Design Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-91f502dd8899",
+      "name": "P2000 | Coral Halftone",
+      "weapon": "P2000",
+      "rarity": "Industrial Grade",
+      "minFloat": 0,
+      "maxFloat": 0.52,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Graphic Design Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-41e01b452fce",
+      "name": "SSG 08 | Halftone Whorl",
+      "weapon": "SSG 08",
+      "rarity": "Industrial Grade",
+      "minFloat": 0,
+      "maxFloat": 0.5,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Graphic Design Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-9527d46c449f",
+      "name": "AK-47 | Crossfade",
+      "weapon": "AK-47",
+      "rarity": "Mil-Spec Grade",
+      "minFloat": 0,
+      "maxFloat": 0.5,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Graphic Design Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-643580f5e594",
+      "name": "SCAR-20 | Wild Berry",
+      "weapon": "SCAR-20",
+      "rarity": "Mil-Spec Grade",
+      "minFloat": 0,
+      "maxFloat": 0.65,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Graphic Design Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-67dfc7fef62f",
+      "name": "SG 553 | Berry Gel Coat",
+      "weapon": "SG 553",
+      "rarity": "Mil-Spec Grade",
+      "minFloat": 0,
+      "maxFloat": 0.8,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Graphic Design Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-36f03d5a542f",
+      "name": "XM1014 | Halftone Shift",
+      "weapon": "XM1014",
+      "rarity": "Mil-Spec Grade",
+      "minFloat": 0,
+      "maxFloat": 0.6,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Graphic Design Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-d2082b23439a",
+      "name": "CZ75-Auto | Slalom",
+      "weapon": "CZ75-Auto",
+      "rarity": "Restricted",
+      "minFloat": 0,
+      "maxFloat": 0.57,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Graphic Design Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-b5bc3553f7e1",
+      "name": "M4A4 | Polysoup",
+      "weapon": "M4A4",
+      "rarity": "Restricted",
+      "minFloat": 0,
+      "maxFloat": 0.64,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Graphic Design Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-efc5c4835241",
+      "name": "P90 | Attack Vector",
+      "weapon": "P90",
+      "rarity": "Restricted",
+      "minFloat": 0,
+      "maxFloat": 0.55,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Graphic Design Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-bc5a36f177b0",
+      "name": "M4A1-S | Party Animal",
+      "weapon": "M4A1-S",
+      "rarity": "Classified",
+      "minFloat": 0,
+      "maxFloat": 0.6,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Harlequin Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-56333a38bf41",
+      "name": "CZ75-Auto | Honey Paisley",
+      "weapon": "CZ75-Auto",
+      "rarity": "Consumer Grade",
+      "minFloat": 0,
+      "maxFloat": 0.6,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Harlequin Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-f9f850e1e389",
+      "name": "FAMAS | Byproduct",
+      "weapon": "FAMAS",
+      "rarity": "Consumer Grade",
+      "minFloat": 0,
+      "maxFloat": 0.55,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Harlequin Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-07db077aad75",
+      "name": "MP9 | Bee-Tron",
+      "weapon": "MP9",
+      "rarity": "Consumer Grade",
+      "minFloat": 0,
+      "maxFloat": 0.9,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Harlequin Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-8ac8f9231892",
+      "name": "PP-Bizon | Thermal Currents",
+      "weapon": "PP-Bizon",
+      "rarity": "Consumer Grade",
+      "minFloat": 0,
+      "maxFloat": 0.6,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Harlequin Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-2f4f4e0aaa4e",
+      "name": "R8 Revolver | Mauve Aside",
+      "weapon": "R8 Revolver",
+      "rarity": "Consumer Grade",
+      "minFloat": 0,
+      "maxFloat": 0.80339,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Harlequin Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-0b2ec5b2c5ef",
+      "name": "Sawed-Off | Crimson Batik",
+      "weapon": "Sawed-Off",
+      "rarity": "Consumer Grade",
+      "minFloat": 0,
+      "maxFloat": 0.6,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Harlequin Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-9a7b0a3e260f",
+      "name": "SG 553 | Safari Print",
+      "weapon": "SG 553",
+      "rarity": "Consumer Grade",
+      "minFloat": 0,
+      "maxFloat": 0.7,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Harlequin Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-105633b3f165",
+      "name": "MP5-SD | Picnic",
+      "weapon": "MP5-SD",
+      "rarity": "Industrial Grade",
+      "minFloat": 0,
+      "maxFloat": 0.75,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Harlequin Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-33edc6632c92",
+      "name": "MP7 | Coral Paisley",
+      "weapon": "MP7",
+      "rarity": "Industrial Grade",
+      "minFloat": 0,
+      "maxFloat": 0.65,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Harlequin Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-2efacc35df16",
+      "name": "SSG 08 | Calligrafaux",
+      "weapon": "SSG 08",
+      "rarity": "Industrial Grade",
+      "minFloat": 0,
+      "maxFloat": 1,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Harlequin Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-25af68e7c19c",
+      "name": "Tec-9 | Banana Leaf",
+      "weapon": "Tec-9",
+      "rarity": "Industrial Grade",
+      "minFloat": 0,
+      "maxFloat": 0.6,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Harlequin Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-674317d93e09",
+      "name": "XM1014 | XoooM",
+      "weapon": "XM1014",
+      "rarity": "Industrial Grade",
+      "minFloat": 0,
+      "maxFloat": 0.6,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Harlequin Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-6f23920b8406",
+      "name": "Five-SeveN | Fraise Crane",
+      "weapon": "Five-SeveN",
+      "rarity": "Mil-Spec Grade",
+      "minFloat": 0,
+      "maxFloat": 0.65,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Harlequin Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-49296f9e5232",
+      "name": "Galil AR | Sky Mandala",
+      "weapon": "Galil AR",
+      "rarity": "Mil-Spec Grade",
+      "minFloat": 0,
+      "maxFloat": 0.7,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Harlequin Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-37ac474a54e4",
+      "name": "UMP-45 | Warm Blooded",
+      "weapon": "UMP-45",
+      "rarity": "Mil-Spec Grade",
+      "minFloat": 0,
+      "maxFloat": 0.7,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Harlequin Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-0843472a9098",
+      "name": "Zeus x27 | Earth Mandala",
+      "weapon": "Zeus x27",
+      "rarity": "Mil-Spec Grade",
+      "minFloat": 0,
+      "maxFloat": 0.66,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Harlequin Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-d384f428d432",
+      "name": "AWP | Exothermic",
+      "weapon": "AWP",
+      "rarity": "Restricted",
+      "minFloat": 0,
+      "maxFloat": 0.7,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Harlequin Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-a060f0657eb4",
+      "name": "USP-S | Sleeping Potion",
+      "weapon": "USP-S",
+      "rarity": "Restricted",
+      "minFloat": 0,
+      "maxFloat": 0.7,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Harlequin Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-181c7ea71c0b",
+      "name": "AK-47 | Nouveau Rouge",
+      "weapon": "AK-47",
+      "rarity": "Classified",
+      "minFloat": 0,
+      "maxFloat": 1,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Radiant Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-35313981918b",
+      "name": "CZ75-Auto | Pink Pearl",
+      "weapon": "CZ75-Auto",
+      "rarity": "Consumer Grade",
+      "minFloat": 0,
+      "maxFloat": 0.7,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Radiant Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-9abf6c56653a",
+      "name": "Dual Berettas | BorDeux",
+      "weapon": "Dual Berettas",
+      "rarity": "Consumer Grade",
+      "minFloat": 0,
+      "maxFloat": 0.8,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Radiant Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-f0c6c7583a15",
+      "name": "Five-SeveN | Autumn Thicket",
+      "weapon": "Five-SeveN",
+      "rarity": "Consumer Grade",
+      "minFloat": 0,
+      "maxFloat": 0.636986,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Radiant Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-5b81f5848973",
+      "name": "G3SG1 | Red Jasper",
+      "weapon": "G3SG1",
+      "rarity": "Consumer Grade",
+      "minFloat": 0,
+      "maxFloat": 0.637288,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Radiant Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-d33e14057f12",
+      "name": "MAC-10 | Bronzer",
+      "weapon": "MAC-10",
+      "rarity": "Consumer Grade",
+      "minFloat": 0,
+      "maxFloat": 0.8,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Radiant Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-f64e51a70f37",
+      "name": "MP7 | Short Ochre",
+      "weapon": "MP7",
+      "rarity": "Consumer Grade",
+      "minFloat": 0,
+      "maxFloat": 0.746575,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Radiant Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-8d8dc6609ae2",
+      "name": "MP9 | Multi-Terrain",
+      "weapon": "MP9",
+      "rarity": "Consumer Grade",
+      "minFloat": 0,
+      "maxFloat": 0.6,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Radiant Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-80643791f393",
+      "name": "Nova | Marsh Grass",
+      "weapon": "Nova",
+      "rarity": "Consumer Grade",
+      "minFloat": 0,
+      "maxFloat": 0.55,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Radiant Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-948dbf5d933b",
+      "name": "P90 | Desert Halftone",
+      "weapon": "P90",
+      "rarity": "Consumer Grade",
+      "minFloat": 0,
+      "maxFloat": 0.65,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Radiant Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-968b010d42f7",
+      "name": "PP-Bizon | Wood Block Camo",
+      "weapon": "PP-Bizon",
+      "rarity": "Consumer Grade",
+      "minFloat": 0,
+      "maxFloat": 0.6,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Radiant Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-2da4350cc477",
+      "name": "SCAR-20 | Short Ochre",
+      "weapon": "SCAR-20",
+      "rarity": "Consumer Grade",
+      "minFloat": 0,
+      "maxFloat": 0.746575,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Radiant Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-f329fee24fe4",
+      "name": "XM1014 | Canvas Cloud",
+      "weapon": "XM1014",
+      "rarity": "Consumer Grade",
+      "minFloat": 0,
+      "maxFloat": 0.6,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Radiant Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-1a08f20b0116",
+      "name": "FAMAS | Grey Ghost",
+      "weapon": "FAMAS",
+      "rarity": "Industrial Grade",
+      "minFloat": 0,
+      "maxFloat": 0.637288,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Radiant Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-41452c191f44",
+      "name": "Galil AR | O-Ranger",
+      "weapon": "Galil AR",
+      "rarity": "Industrial Grade",
+      "minFloat": 0,
+      "maxFloat": 0.75,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Radiant Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-07d3aad223e4",
+      "name": "M4A4 | Steel Work",
+      "weapon": "M4A4",
+      "rarity": "Industrial Grade",
+      "minFloat": 0,
+      "maxFloat": 0.7,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Radiant Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-7efe4d3e7779",
+      "name": "P250 | Sedimentary",
+      "weapon": "P250",
+      "rarity": "Industrial Grade",
+      "minFloat": 0,
+      "maxFloat": 0.68,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Radiant Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-cee47ac22903",
+      "name": "SG 553 | Basket Halftone",
+      "weapon": "SG 553",
+      "rarity": "Industrial Grade",
+      "minFloat": 0,
+      "maxFloat": 0.6,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Radiant Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-91e671371a10",
+      "name": "Tec-9 | Citric Acid",
+      "weapon": "Tec-9",
+      "rarity": "Industrial Grade",
+      "minFloat": 0,
+      "maxFloat": 0.6,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Radiant Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-bc79778fcc59",
+      "name": "AWP | Arsenic Spill",
+      "weapon": "AWP",
+      "rarity": "Mil-Spec Grade",
+      "minFloat": 0,
+      "maxFloat": 0.501961,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Radiant Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-79039995c554",
+      "name": "Glock-18 | Coral Bloom",
+      "weapon": "Glock-18",
+      "rarity": "Mil-Spec Grade",
+      "minFloat": 0,
+      "maxFloat": 0.752941,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Radiant Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-d474744b61b7",
+      "name": "M4A1-S | Rose Hex",
+      "weapon": "M4A1-S",
+      "rarity": "Mil-Spec Grade",
+      "minFloat": 0,
+      "maxFloat": 0.5,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Radiant Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-5254ad7ed93d",
+      "name": "MP9 | Shredded",
+      "weapon": "MP9",
+      "rarity": "Mil-Spec Grade",
+      "minFloat": 0,
+      "maxFloat": 0.6,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Radiant Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-1244c7faf3ea",
+      "name": "P250 | Red Tide",
+      "weapon": "P250",
+      "rarity": "Mil-Spec Grade",
+      "minFloat": 0,
+      "maxFloat": 0.75,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Radiant Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-0f8b4882d7c6",
+      "name": "SSG 08 | Blush Pour",
+      "weapon": "SSG 08",
+      "rarity": "Mil-Spec Grade",
+      "minFloat": 0,
+      "maxFloat": 0.678431,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Radiant Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-2d7d76a0b8b5",
+      "name": "Desert Eagle | Mulberry",
+      "weapon": "Desert Eagle",
+      "rarity": "Restricted",
+      "minFloat": 0,
+      "maxFloat": 0.75,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Radiant Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-75c237bdd4fc",
+      "name": "M4A1-S | Glitched Paint",
+      "weapon": "M4A1-S",
+      "rarity": "Restricted",
+      "minFloat": 0,
+      "maxFloat": 0.67,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Radiant Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    },
+    {
+      "id": "skin-8e15b1a9e945",
+      "name": "USP-S | Bleeding Edge",
+      "weapon": "USP-S",
+      "rarity": "Restricted",
+      "minFloat": 0,
+      "maxFloat": 0.6,
+      "stattrak": false,
+      "souvenir": false,
+      "collections": [
+        "The Radiant Collection"
+      ],
+      "availableExteriors": [
+        "Factory New",
+        "Minimal Wear",
+        "Field-Tested",
+        "Well-Worn",
+        "Battle-Scarred"
+      ]
+    }
+  ]
+}

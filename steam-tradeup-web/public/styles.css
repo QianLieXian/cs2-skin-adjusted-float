@@ -1,0 +1,18 @@
+:root { color-scheme: dark; }
+body { font-family: Inter, system-ui, sans-serif; background: #121520; color: #f6f8ff; margin: 0; }
+.container { max-width: 980px; margin: 24px auto; padding: 0 16px 24px; }
+.card { background: #1a1f2e; border: 1px solid #2b3349; border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+h1, h2 { margin-top: 0; }
+.muted, .tip { color: #a6b0cf; }
+label { display: block; margin-bottom: 8px; }
+input { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #3a4564; background: #0e1220; color: #fff; }
+button { border: 0; border-radius: 8px; padding: 10px 14px; background: #4d6bff; color: #fff; cursor: pointer; }
+button.secondary { background: #3a425e; }
+button + button { margin-left: 8px; }
+.row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+pre { background: #0f1528; padding: 10px; border-radius: 8px; white-space: pre-wrap; }
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; }
+th, td { border-bottom: 1px solid #313b56; padding: 8px; text-align: left; font-size: 14px; }
+.good { color: #5fffb3; }
+.warn { color: #ffcc66; }
