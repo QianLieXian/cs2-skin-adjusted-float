@@ -351,13 +351,40 @@ app.use(express.json());
 
 app.use(express.static(path.join(__dirname, 'public')));
 
+function isLocalHost(host) {
+  const hostname = String(host ?? '').split(':')[0].trim().toLowerCase();
+  return ['localhost', '127.0.0.1', '::1'].includes(hostname);
+}
+
+function getHeaderBaseUrl(raw) {
+  const value = String(raw ?? '').trim();
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    return `${url.protocol}//${url.host}`;
+  } catch {
+    return null;
+  }
+}
+
 function resolveRequestBaseUrl(req) {
   const forwardedProto = String(req.headers['x-forwarded-proto'] ?? '').split(',')[0].trim();
   const forwardedHost = String(req.headers['x-forwarded-host'] ?? '').split(',')[0].trim();
   const host = forwardedHost || req.get('host');
   const protocol = forwardedProto || req.protocol || 'http';
-  if (!host) return normalizedBaseUrl;
-  return `${protocol}://${host}`;
+
+  if (host && !isLocalHost(host)) {
+    return `${protocol}://${host}`;
+  }
+
+  const refererBaseUrl = getHeaderBaseUrl(req.headers.referer);
+  if (refererBaseUrl) return refererBaseUrl;
+
+  const originBaseUrl = getHeaderBaseUrl(req.headers.origin);
+  if (originBaseUrl) return originBaseUrl;
+
+  if (host) return `${protocol}://${host}`;
+  return normalizedBaseUrl;
 }
 
 function buildSteamAuthOptions(req, { persistForCallback = false } = {}) {
