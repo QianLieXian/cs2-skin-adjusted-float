@@ -290,6 +290,22 @@ async function getWithDirectFallback(url, config = {}) {
   }
 }
 
+async function postWithDirectFallback(url, data, config = {}) {
+  try {
+    return await http.post(url, data, config);
+  } catch (error) {
+    const code = String(error?.code ?? '');
+    const isConnectionTimeout = ['ETIMEDOUT', 'ECONNRESET', 'ECONNREFUSED', 'EHOSTUNREACH', 'ENETUNREACH'].includes(code);
+    if (!proxyUrl || !isConnectionTimeout) throw error;
+    console.warn(`[WARN] Request via proxy failed (${code}), retry direct connection: ${url}`);
+    return axios.post(url, data, {
+      ...config,
+      timeout: axiosConfig.timeout,
+      proxy: false
+    });
+  }
+}
+
 passport.serializeUser((user, done) => done(null, user));
 passport.deserializeUser((obj, done) => done(null, obj));
 
@@ -298,6 +314,51 @@ function verifySteamProfile(_identifier, profile, done) {
     steamId: profile.id,
     personaName: profile.displayName
   });
+}
+
+function extractSteamIdFromClaimedId(claimedId) {
+  const value = String(claimedId ?? '').trim();
+  const match = value.match(/^https?:\/\/steamcommunity\.com\/openid\/id\/(\d+)$/i);
+  return match?.[1] ?? null;
+}
+
+async function verifySteamOpenIdAssertionManually(req) {
+  const openIdPairs = Object.entries(req.query ?? {}).filter(([key]) => key.startsWith('openid.'));
+  if (openIdPairs.length === 0) return null;
+
+  const openidMode = String(req.query?.['openid.mode'] ?? '').trim();
+  const openidNs = String(req.query?.['openid.ns'] ?? '').trim();
+  const opEndpoint = String(req.query?.['openid.op_endpoint'] ?? '').trim();
+  const claimedId = String(req.query?.['openid.claimed_id'] ?? '').trim();
+  const steamId = extractSteamIdFromClaimedId(claimedId);
+  const isKnownSteamEndpoint = opEndpoint === 'https://steamcommunity.com/openid/login';
+
+  if (openidMode !== 'id_res' || openidNs !== 'http://specs.openid.net/auth/2.0' || !steamId || !isKnownSteamEndpoint) {
+    return null;
+  }
+
+  const payload = new URLSearchParams();
+  for (const [key, rawValue] of openIdPairs) {
+    if (rawValue == null) continue;
+    if (Array.isArray(rawValue)) {
+      for (const item of rawValue) payload.append(key, String(item));
+      continue;
+    }
+    payload.append(key, String(rawValue));
+  }
+  payload.set('openid.mode', 'check_authentication');
+
+  const response = await postWithDirectFallback('https://steamcommunity.com/openid/login', payload.toString(), {
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+  });
+  const body = String(response.data ?? '');
+  const isValid = /(?:^|\n)is_valid\s*:\s*true(?:\n|$)/i.test(body);
+  if (!isValid) return null;
+
+  return {
+    steamId,
+    personaName: `steam:${steamId}`
+  };
 }
 
 function createSteamStrategy({ stateless = false } = {}) {
@@ -677,18 +738,50 @@ app.get('/api/auth/steam/return', (req, res, next) => {
             }
             console.error('[ERROR] Steam OpenID callback failed after retry', {
               message: error.message,
+              cause: error?.openidError?.message ?? error?.cause?.message ?? null,
               stack: error.stack,
               openidReturnTo: req.query['openid.return_to'] ?? null,
               expectedReturnURL: retryAuthOptions.returnURL,
               expectedRealm: retryAuthOptions.realm
             });
-            return res.status(401).json({
-              error: 'Steam OpenID callback failed',
-              details: error.message,
-              expectedReturnURL: retryAuthOptions.returnURL,
-              expectedRealm: retryAuthOptions.realm,
-              openidReturnTo: req.query['openid.return_to'] ?? null
-            });
+            return verifySteamOpenIdAssertionManually(req)
+              .then((fallbackUser) => {
+                if (!fallbackUser) {
+                  return res.status(401).json({
+                    error: 'Steam OpenID callback failed',
+                    details: error.message,
+                    cause: error?.openidError?.message ?? error?.cause?.message ?? null,
+                    expectedReturnURL: retryAuthOptions.returnURL,
+                    expectedRealm: retryAuthOptions.realm,
+                    openidReturnTo: req.query['openid.return_to'] ?? null
+                  });
+                }
+                console.warn('[WARN] Steam OpenID callback accepted via manual check_authentication fallback', {
+                  steamId: fallbackUser.steamId,
+                  expectedReturnURL: retryAuthOptions.returnURL,
+                  openidReturnTo: req.query['openid.return_to'] ?? null
+                });
+                return req.logIn(fallbackUser, (loginError) => {
+                  if (loginError) {
+                    console.error('[ERROR] Failed to establish Steam session after manual fallback', loginError);
+                    return next(loginError);
+                  }
+                  if (req.session?.steamAuth) delete req.session.steamAuth;
+                  if (req.session?.steamClientOrigin) delete req.session.steamClientOrigin;
+                  return res.redirect('/');
+                });
+              })
+              .catch((fallbackError) => {
+                console.error('[ERROR] Steam OpenID manual fallback failed', fallbackError);
+                return res.status(401).json({
+                  error: 'Steam OpenID callback failed',
+                  details: error.message,
+                  cause: error?.openidError?.message ?? error?.cause?.message ?? null,
+                  expectedReturnURL: retryAuthOptions.returnURL,
+                  expectedRealm: retryAuthOptions.realm,
+                  openidReturnTo: req.query['openid.return_to'] ?? null
+                });
+              });
           }, 'steam-stateless');
         }
       }
@@ -697,6 +790,7 @@ app.get('/api/auth/steam/return', (req, res, next) => {
       }
       console.error('[ERROR] Steam OpenID callback failed', {
         message: error.message,
+        cause: error?.openidError?.message ?? error?.cause?.message ?? null,
         stack: error.stack,
         openidReturnTo: req.query['openid.return_to'] ?? null,
         expectedReturnURL: authOptions.returnURL,
