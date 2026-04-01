@@ -134,6 +134,14 @@ function normalizeInputFloat(item, skinRangeMap) {
   return Math.max(0, Math.min(1, normalized));
 }
 
+function normalizeSkinLookupName(raw = '') {
+  return String(raw ?? '')
+    .replace(/^StatTrak™\s*/i, '')
+    .replace(/^Souvenir\s+/i, '')
+    .replace(/\s+\((Factory New|Minimal Wear|Field-Tested|Well-Worn|Battle-Scarred)\)$/i, '')
+    .trim();
+}
+
 function localizeSkinName(rawName = '') {
   const [weapon, finish] = rawName.split(' | ');
   const zhWeapon = WEAPON_ZH[weapon] ?? weapon;
@@ -236,9 +244,12 @@ function reverseTradeup(targetFloat, outputSkin, inventory, recipeCount, topN = 
   const targetNormalized = (targetFloat - outputSkin.minFloat) / outputWidth;
   if (targetNormalized < 0 || targetNormalized > 1) return [];
 
-  const skinRangeMap = new Map(skinData.skins.map((s) => [s.name.toLowerCase(), { minFloat: s.minFloat, maxFloat: s.maxFloat }]));
+  const skinRangeMap = new Map(
+    skinData.skins.map((s) => [normalizeSkinLookupName(s.name).toLowerCase(), { minFloat: s.minFloat, maxFloat: s.maxFloat }])
+  );
 
   const candidates = inventory
+    .filter((it) => it.eligibleForTradeup !== false)
     .map((it) => {
       const normalized = normalizeInputFloat(it, skinRangeMap);
       return normalized === null ? null : { ...it, normalized };
@@ -284,7 +295,7 @@ function reverseTradeup(targetFloat, outputSkin, inventory, recipeCount, topN = 
 
 async function loadSkinData() {
   skinData = await fetch('./data/collection_skins.json').then((r) => r.json());
-  skinsByName = new Map(skinData.skins.map((s) => [s.name.toLowerCase(), s]));
+  skinsByName = new Map(skinData.skins.map((s) => [normalizeSkinLookupName(s.name).toLowerCase(), s]));
   ui.dataSummary.innerHTML = `
     <p>已加载 <strong>${skinData.totalSkins}</strong> 个饰品（含全部稀有度/品质条目），覆盖收藏品：</p>
     <ul>${skinData.collections.map((c) => `<li>${COLLECTION_ZH[c] ?? c}</li>`).join('')}</ul>
@@ -301,7 +312,7 @@ function renderResult(rows, targetFloat, outputSkin, recipeCount) {
   const htmlRows = rows.map((row, i) => {
     const exact = row.delta <= 1e-12;
     const itemList = row.items.map((it) => {
-      const skin = skinsByName.get((it.marketHashName || '').toLowerCase());
+      const skin = skinsByName.get(normalizeSkinLookupName(it.marketHashName || '').toLowerCase());
       const breadcrumb = skin ? makeBreadcrumb(skin) : `未知收藏 / 未知品质 / ${localizeSkinName(it.marketHashName || '未知饰品')}`;
       const rarityClass = skin ? (RARITY_CLASS[skin.rarity] ?? '') : '';
       return `<li class="${rarityClass}">${breadcrumb}（float: ${fmt16(it.floatValue)}，归一化: ${fmt16(it.normalized)}）</li>`;
@@ -382,7 +393,8 @@ async function loadAuthedInventory(user) {
     renderInventoryMeta(invResp);
     return;
   }
-  ui.authStatus.textContent = `已登录 Steam: ${displayName} (${steamId})\n已读取库存材料 ${inventoryItems.length} 件`;
+  const materialCount = Number(invResp.materialCount ?? inventoryItems.filter((it) => it.eligibleForTradeup !== false).length);
+  ui.authStatus.textContent = `已登录 Steam: ${displayName} (${steamId})\n已读取库存总数 ${inventoryItems.length} 件，可用于炼金 ${materialCount} 件`;
   renderInventoryMeta(invResp);
 }
 
@@ -393,17 +405,28 @@ function renderInventoryMeta(meta) {
   }
   const cooldownCount = Number(meta.cooldownCount ?? inventoryItems.filter((it) => it.cooldown).length);
   const total = Number(meta.total ?? inventoryItems.length);
+  const materialCount = Number(meta.materialCount ?? inventoryItems.filter((it) => it.eligibleForTradeup !== false).length);
+  const missingFloatCount = Number(meta.missingFloatCount ?? inventoryItems.filter((it) => typeof it.floatValue !== 'number').length);
+  const dictionaryMatchedCount = Number(meta.dictionaryMatchedCount ?? inventoryItems.filter((it) => it.collection && it.rarity).length);
   const listHtml = inventoryItems.slice(0, 40).map((it) => {
-    const skin = skinsByName.get((it.marketHashName || '').toLowerCase());
+    const skin = skinsByName.get(normalizeSkinLookupName(it.marketHashName || '').toLowerCase());
     const rarityClass = skin ? (RARITY_CLASS[skin.rarity] ?? '') : '';
     const breadcrumb = skin ? makeBreadcrumb(skin) : `未知收藏 / 未知品质 / ${localizeSkinName(it.marketHashName || '未知饰品')}`;
+    const floatLabel = typeof it.floatValue === 'number'
+      ? `float ${fmt16(it.floatValue)}${it.floatSource === 'estimated_from_exterior' ? '（估算）' : ''}`
+      : 'float 缺失';
+    const stateTags = [
+      it.cooldown ? '<span class="tag warn">交易冷却/限制</span>' : '<span class="tag">可交易</span>',
+      it.isSouvenir ? '<span class="tag warn">纪念品（不可合成）</span>' : '<span class="tag">非纪念品</span>',
+      it.isStatTrak ? '<span class="tag">StatTrak™</span>' : ''
+    ].filter(Boolean).join('');
     return `
       <div class="inv-row ${it.cooldown ? 'cooldown' : ''}">
         <div>${it.cooldown ? '⏳' : '✅'}</div>
         <div class="${rarityClass}">
           ${breadcrumb}
-          <span class="tag">${typeof it.floatValue === 'number' ? `float ${fmt16(it.floatValue)}` : 'float 缺失'}</span>
-          ${it.cooldown ? '<span class="tag warn">冷却/限制</span>' : '<span class="tag">可交易</span>'}
+          <span class="tag">${floatLabel}</span>
+          ${stateTags}
         </div>
       </div>
     `;
@@ -411,7 +434,10 @@ function renderInventoryMeta(meta) {
   ui.inventoryMeta.innerHTML = `
     <div class="meta">
       库存来源：<strong>${meta.source ?? 'unknown'}</strong>，总数：<strong>${total}</strong>，
-      冷却/限制物品：<strong class="cooldown">${cooldownCount}</strong>
+      可用于炼金：<strong>${materialCount}</strong>，
+      冷却/限制物品：<strong class="cooldown">${cooldownCount}</strong>，
+      字典命中：<strong>${dictionaryMatchedCount}</strong>，
+      float 缺失：<strong>${missingFloatCount}</strong>
     </div>
     ${listHtml ? `<div class="inv-list">${listHtml}</div>` : ''}
   `;
