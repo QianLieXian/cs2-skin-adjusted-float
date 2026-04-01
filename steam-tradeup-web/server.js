@@ -1177,12 +1177,33 @@ async function fetchInventoryFromCommunity(steamId) {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
   };
   const primaryUrl = `https://steamcommunity.com/inventory/${steamId}/730/2`;
+
+  const fetchCommunityPages = async (url, extraParams = {}) => {
+    let startAssetId = null;
+    const allItems = [];
+    for (let i = 0; i < 8; i += 1) {
+      const response = await getWithDirectFallback(url, {
+        params: {
+          l: 'english',
+          count: 2000,
+          ...(startAssetId ? { start_assetid: startAssetId } : {}),
+          ...extraParams
+        },
+        headers
+      });
+      const chunkItems = parseCommunityInventoryPayload(response.data, steamId);
+      allItems.push(...chunkItems);
+      const moreItems = Boolean(response?.data?.more_items);
+      const lastAssetId = response?.data?.last_assetid;
+      if (!moreItems || !lastAssetId) break;
+      startAssetId = lastAssetId;
+    }
+    const deduped = [...new Map(allItems.map((it) => [it.id, it])).values()];
+    return deduped;
+  };
+
   try {
-    const response = await getWithDirectFallback(primaryUrl, {
-      params: { l: 'english', count: 5000 },
-      headers
-    });
-    const items = parseCommunityInventoryPayload(response.data, steamId);
+    const items = await fetchCommunityPages(primaryUrl);
     return {
       source: 'auth',
       total: items.length,
@@ -1193,7 +1214,7 @@ async function fetchInventoryFromCommunity(steamId) {
     const legacyUrl = `https://steamcommunity.com/profiles/${steamId}/inventory/json/730/2`;
     try {
       const response = await getWithDirectFallback(legacyUrl, {
-        params: { l: 'english', count: 5000 },
+        params: { l: 'english', count: 2000 },
         headers
       });
       const items = parseLegacyCommunityInventoryPayload(response.data, steamId);
@@ -1357,35 +1378,45 @@ async function fetchPublicInventoryByTradeUrl(tradeUrl) {
 
   const invUrl = `https://steamcommunity.com/inventory/${parsed.steamId}/730/2`;
   const baseParams = {
-    l: 'english',
-    count: 5000
+    l: 'english'
   };
   const baseHeaders = {
     Referer: 'https://steamcommunity.com/',
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
   };
-  let data;
+  const fetchPages = async (extraParams = {}, extraHeaders = {}) => {
+    let startAssetId = null;
+    const allItems = [];
+    for (let i = 0; i < 8; i += 1) {
+      const response = await getWithDirectFallback(invUrl, {
+        params: {
+          ...baseParams,
+          count: 2000,
+          ...(startAssetId ? { start_assetid: startAssetId } : {}),
+          ...extraParams
+        },
+        headers: { ...baseHeaders, ...extraHeaders }
+      });
+      allItems.push(...parseCommunityInventoryPayload(response.data, parsed.steamId));
+      const moreItems = Boolean(response?.data?.more_items);
+      const lastAssetId = response?.data?.last_assetid;
+      if (!moreItems || !lastAssetId) break;
+      startAssetId = lastAssetId;
+    }
+    return [...new Map(allItems.map((it) => [it.id, it])).values()];
+  };
+
+  let items;
   try {
-    const response = await getWithDirectFallback(invUrl, {
-      params: baseParams,
-      headers: baseHeaders
-    });
-    data = response.data;
+    items = await fetchPages();
   } catch (error) {
     const statusCode = error?.response?.status;
     if (statusCode === 400 && parsed.token) {
       try {
-        const retryResponse = await getWithDirectFallback(invUrl, {
-          params: {
-            ...baseParams,
-            trade_offer_access_token: parsed.token
-          },
-          headers: {
-            ...baseHeaders,
-            Referer: tradeUrl
-          }
-        });
-        data = retryResponse.data;
+        items = await fetchPages(
+          { trade_offer_access_token: parsed.token },
+          { Referer: tradeUrl }
+        );
       } catch (retryError) {
         if (retryError?.response?.status === 400) {
           const err = new Error('Steam 返回 400：交易链接无效，或该账户库存不可公开访问。');
@@ -1402,8 +1433,6 @@ async function fetchPublicInventoryByTradeUrl(tradeUrl) {
       throw error;
     }
   }
-
-  const items = parseCommunityInventoryPayload(data, parsed.steamId);
 
   return {
     source: 'trade_url',
