@@ -258,3 +258,33 @@
 ### 结果
 - 当代理头包含多个 host 且首项是 localhost 时，后端会优先选取非 localhost 的公网域名来构建 OpenID `realm/returnURL`。
 - 进一步减少“明明从公网访问，Steam 仍显示登录到 localhost”的场景。
+
+---
+
+## 2026-04-01（最终定位：`passport-steam` 忽略动态 `realm/returnURL`）
+
+### 问题现象
+- 服务端日志里已经打印了公网域名的 `realm/returnURL`（例如 `https://csskin.666666.li/...`）。
+- 但 Steam 授权页仍显示“登录到 localhost”，并且回调仍可见 `http://localhost:5173/api/auth/steam/return?...`。
+
+### 根因（这次命中）
+- `passport-steam` 基于 `passport-openid` 内部的 `RelyingParty` 实例做认证。
+- 该实例在 `passport.use(new SteamStrategy(...))` 初始化时就固定了 `returnURL/realm`。
+- 虽然路由里每次都构建了动态 `authOptions`，但 `passport.authenticate('steam', authOptions)` **不会覆盖**已初始化的 `RelyingParty` 参数。
+- 结果：日志看起来“动态 URL 正确”，但实际发给 Steam 的仍是启动时的 localhost 配置。
+
+### 本轮修复
+1. **新增策略运行时覆写函数** `applySteamAuthOptionsToStrategy()`
+   - 在每次发起/校验 Steam 登录前，将当前请求解析出的 `authOptions.returnURL` 与 `authOptions.realm` 写回 `steamStrategy._relyingParty`。
+
+2. **在统一入口 `authenticateSteam()` 内强制执行覆写**
+   - 先覆写策略内部 `RelyingParty`，再调用 `passport.authenticate('steam', authOptions, ...)`。
+   - 这样可确保“实际请求参数”与日志打印参数一致，不再被初始化时 localhost 值绑死。
+
+### 预期结果
+- 从公网域名发起登录时，Steam 授权页应显示公网域名（而不是 localhost）。
+- 回调 URL 应固定为公网地址 `/api/auth/steam/return`。
+
+### 后续建议
+- `.env` 里仍建议配置 `PUBLIC_BASE_URL=https://你的公网域名`（反代头不稳定时作为兜底）。
+- 若仍异常，抓取一次 `/api/auth/steam` 请求与 302 Location，确认是否仍有中间层改写。

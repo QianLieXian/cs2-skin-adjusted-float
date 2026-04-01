@@ -331,7 +331,22 @@ function trySwitchOpenIdProvider(error) {
   return true;
 }
 
+function applySteamAuthOptionsToStrategy(authOptions = {}) {
+  const steamStrategy = passport._strategy?.('steam');
+  if (!steamStrategy) return;
+  const nextReturnURL = String(authOptions.returnURL ?? '').trim();
+  const nextRealm = String(authOptions.realm ?? '').trim();
+
+  if (nextReturnURL && steamStrategy._relyingParty) {
+    steamStrategy._relyingParty.returnUrl = nextReturnURL;
+  }
+  if (nextRealm && steamStrategy._relyingParty) {
+    steamStrategy._relyingParty.realm = nextRealm;
+  }
+}
+
 function authenticateSteam(req, res, next, authOptions, callback) {
+  applySteamAuthOptionsToStrategy(authOptions);
   const run = () => passport.authenticate('steam', authOptions, callback)(req, res, next);
   run();
 }
