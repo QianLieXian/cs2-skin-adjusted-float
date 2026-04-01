@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CS2 炼金磨损匹配器</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <main class="container">
+    <h1>CS2 炼金磨损匹配器</h1>
+    <p class="muted">支持哈乐昆 / 攀升 / 寒带 / 热辐射 / 墨彩收藏品，自动使用饰品磨损上下限计算可达值。</p>
+
+    <section class="card">
+      <h2>1) Steam 库存授权与读取</h2>
+      <div class="row">
+        <button id="steamLoginBtn">Steam 登录（需后端）</button>
+        <button id="loadDemoBtn" class="secondary">加载示例库存</button>
+      </div>
+      <p class="tip">若未部署后端，可先用“示例库存”验证算法。部署后端后此页面可直接读取你的 Steam 库存。</p>
+      <pre id="authStatus">未登录</pre>
+    </section>
+
+    <section class="card">
+      <h2>2) 目标磨损输入</h2>
+      <label for="targetFloat">目标磨损（最多 16 位小数）</label>
+      <input id="targetFloat" type="text" placeholder="例如：0.1234567890123456" />
+      <button id="calculateBtn">计算最接近方案</button>
+      <p class="tip">炼金输出近似公式：输出磨损 = 输出皮肤最小磨损 + (输出皮肤最大磨损 - 最小磨损) * 10件材料平均磨损。</p>
+    </section>
+
+    <section class="card">
+      <h2>3) 计算结果</h2>
+      <div id="result"></div>
+    </section>
+
+    <section class="card">
+      <h2>数据范围</h2>
+      <div id="dataSummary"></div>
+    </section>
+  </main>
+
+  <script src="./script.js" type="module"></script>
+</body>
+</html>
