@@ -333,6 +333,22 @@ function detectExterior(raw = '') {
   return match?.[1] ?? null;
 }
 
+function parseFloatFromInspectResponse(payload) {
+  const candidates = [
+    payload?.iteminfo?.floatvalue,
+    payload?.iteminfo?.float_value,
+    payload?.item?.floatvalue,
+    payload?.item?.float_value,
+    payload?.floatvalue,
+    payload?.float_value
+  ];
+  for (const value of candidates) {
+    const num = Number(value);
+    if (Number.isFinite(num) && num >= 0 && num <= 1) return num;
+  }
+  return null;
+}
+
 const EXTERIOR_MID_FLOAT = {
   'Factory New': 0.035,
   'Minimal Wear': 0.11,
@@ -376,7 +392,44 @@ function estimateFloatFromExterior(rawName, skinMeta) {
   const max = Number(skinMeta.maxFloat ?? 1);
   if (!Number.isFinite(min) || !Number.isFinite(max) || max <= min) return baseMid;
   const scaled = min + (max - min) * baseMid;
-  return Math.max(min, Math.min(max, Number(scaled.toFixed(6))));
+  return Math.max(min, Math.min(max, Number(scaled.toFixed(16))));
+}
+
+async function resolveFloatFromInspectLink(item = {}) {
+  if (typeof item.floatValue === 'number') return item.floatValue;
+  if (!item.inspectLink) return null;
+  try {
+    const response = await getWithDirectFallback(CSFLOAT_INSPECT_API, {
+      params: { url: item.inspectLink },
+      timeout: 5500
+    });
+    return parseFloatFromInspectResponse(response?.data);
+  } catch {
+    return null;
+  }
+}
+
+async function resolveMissingFloats(items = []) {
+  const queue = items
+    .map((item, index) => ({ item, index }))
+    .filter(({ item }) => typeof item.floatValue !== 'number' && item.inspectLink);
+  const concurrency = 6;
+  const workers = Array.from({ length: Math.min(concurrency, queue.length) }).map(async () => {
+    while (queue.length > 0) {
+      const current = queue.pop();
+      if (!current) break;
+      const exactFloat = await resolveFloatFromInspectLink(current.item);
+      if (typeof exactFloat === 'number') {
+        items[current.index] = {
+          ...items[current.index],
+          floatValue: exactFloat,
+          floatSource: 'csfloat_inspect'
+        };
+      }
+    }
+  });
+  await Promise.all(workers);
+  return items;
 }
 
 function enrichInventoryItem(item = {}) {
@@ -386,8 +439,9 @@ function enrichInventoryItem(item = {}) {
   const isSouvenir = /^Souvenir\s+/i.test(originalName);
   const isStatTrak = /^StatTrak™\s*/i.test(originalName);
   const estimatedFloat = typeof item.floatValue === 'number' ? null : estimateFloatFromExterior(originalName, skinMeta);
-  const floatValue = typeof item.floatValue === 'number' ? item.floatValue : estimatedFloat;
-  const floatSource = typeof item.floatValue === 'number'
+  const hasExactFloat = typeof item.floatValue === 'number';
+  const floatValue = hasExactFloat ? item.floatValue : estimatedFloat;
+  const floatSource = hasExactFloat
     ? 'api'
     : typeof estimatedFloat === 'number'
       ? 'estimated_from_exterior'
@@ -406,22 +460,28 @@ function enrichInventoryItem(item = {}) {
   };
 }
 
-function enrichInventory(items = []) {
-  return items.map(enrichInventoryItem);
+async function enrichInventory(items = []) {
+  const baseItems = items.map(enrichInventoryItem);
+  await resolveMissingFloats(baseItems);
+  return baseItems;
 }
 
-function withInventoryMeta(result = {}) {
-  const enrichedItems = enrichInventory(result.items ?? []);
+async function withInventoryMeta(result = {}) {
+  const enrichedItems = await enrichInventory(result.items ?? []);
   const materialCount = enrichedItems.filter((it) => it.eligibleForTradeup).length;
   const missingFloatCount = enrichedItems.filter((it) => typeof it.floatValue !== 'number').length;
   const dictionaryMatchedCount = enrichedItems.filter((it) => it.collection && it.rarity).length;
+  const exactFloatCount = enrichedItems.filter((it) => ['api', 'csfloat_inspect'].includes(it.floatSource)).length;
+  const estimatedFloatCount = enrichedItems.filter((it) => it.floatSource === 'estimated_from_exterior').length;
   return {
     ...result,
     total: enrichedItems.length,
     items: enrichedItems,
     materialCount,
     missingFloatCount,
-    dictionaryMatchedCount
+    dictionaryMatchedCount,
+    exactFloatCount,
+    estimatedFloatCount
   };
 }
 
@@ -1189,8 +1249,19 @@ function parseTradeUrl(raw) {
 }
 
 function extractCooldownText(desc = []) {
+  const cooldownPatterns = [
+    /tradable after/i,
+    /available after/i,
+    /not tradable/i,
+    /cannot be traded/i,
+    /trade hold/i,
+    /交易后.*可交易/i,
+    /可在.*后交易/i,
+    /不可交易/i,
+    /交易冷却/i
+  ];
   return desc
-    .filter((d) => d?.value && /trade|交易|冷却|hold|available|可交易/i.test(d.value))
+    .filter((d) => d?.value && cooldownPatterns.some((pattern) => pattern.test(String(d.value))))
     .map((d) => d.value.replace(/<[^>]*>/g, '').trim())
     .filter(Boolean);
 }
@@ -1233,13 +1304,16 @@ function parseAssetDescriptionInventoryPayload(payload, steamId) {
       .replace('%assetid%', asset.assetid ?? asset.id ?? '');
     const cooldownText = extractCooldownText([...(desc.owner_descriptions ?? []), ...(desc.descriptions ?? [])]);
     const tradable = Number(desc.tradable ?? 1) === 1;
+    const permanentUntradable =
+      (desc.tags ?? []).some((tag) => String(tag?.internal_name ?? '').toLowerCase() === 'not_tradable') ||
+      /不可交易|not tradable/i.test(String(desc.type ?? ''));
     return {
       id: String(asset.assetid ?? asset.id ?? ''),
       marketHashName: desc.market_hash_name ?? desc.marketHashName ?? '',
       iconUrl: desc.icon_url ? `https://community.fastly.steamstatic.com/economy/image/${desc.icon_url}/96fx96f` : '',
       inspectLink,
       tradable,
-      cooldown: !tradable || cooldownText.length > 0,
+      cooldown: (!tradable && !permanentUntradable) || cooldownText.length > 0,
       cooldownText,
       floatValue: null
     };
@@ -1264,13 +1338,16 @@ function parseLegacyCommunityInventoryPayload(payload, steamId) {
       .replace('%assetid%', asset.id ?? asset.assetid ?? '');
     const cooldownText = extractCooldownText([...(desc.owner_descriptions ?? []), ...(desc.descriptions ?? [])]);
     const tradable = Number(desc.tradable ?? 1) === 1;
+    const permanentUntradable =
+      (desc.tags ?? []).some((tag) => String(tag?.internal_name ?? '').toLowerCase() === 'not_tradable') ||
+      /不可交易|not tradable/i.test(String(desc.type ?? ''));
     return {
       id: String(asset.id ?? asset.assetid ?? ''),
       marketHashName: desc.market_hash_name ?? desc.marketHashName ?? '',
       iconUrl: desc.icon_url ? `https://community.fastly.steamstatic.com/economy/image/${desc.icon_url}/96fx96f` : '',
       inspectLink,
       tradable,
-      cooldown: !tradable || cooldownText.length > 0,
+      cooldown: (!tradable && !permanentUntradable) || cooldownText.length > 0,
       cooldownText,
       floatValue: null
     };
@@ -1406,7 +1483,7 @@ app.get('/api/inventory', requireAuth, async (req, res) => {
 
   try {
     const communityResult = await fetchInventoryFromCommunity(req.user.steamId);
-    return res.json(withInventoryMeta({
+    return res.json(await withInventoryMeta({
       ...communityResult,
       inspectApi: `${CSFLOAT_INSPECT_API}/?url=<inspect_link>`,
       note: '库存优先来自 steamcommunity inventory 接口；官方 Web API 在 CS2 场景经常返回空结果。'
@@ -1418,7 +1495,7 @@ app.get('/api/inventory', requireAuth, async (req, res) => {
       try {
         const econServiceResult = await fetchInventoryFromEconService(req.user.steamId, apiKey);
         if (econServiceResult.total > 0) {
-          return res.json(withInventoryMeta({
+          return res.json(await withInventoryMeta({
             ...econServiceResult,
             inspectApi: `${CSFLOAT_INSPECT_API}/?url=<inspect_link>`,
             note: '主链路失败后，已回退到 IEconService/GetInventoryItemsWithDescriptions。'
@@ -1444,7 +1521,7 @@ app.get('/api/inventory', requireAuth, async (req, res) => {
           }));
         const resultItems = normalizeInventory(normalized);
         if (resultItems.length > 0) {
-          return res.json(withInventoryMeta({
+          return res.json(await withInventoryMeta({
             source: 'auth_legacy_api',
             total: resultItems.length,
             cooldownCount: 0,
@@ -1463,7 +1540,7 @@ app.get('/api/inventory', requireAuth, async (req, res) => {
     const hints = statusCode === 403 || statusCode === 400
       ? 'Steam 社区库存接口拒绝访问：请确认该账号库存公开可见，或改用“交易链接读取库存”。如果你确认库存公开且有物品，请检查代理出口 IP 是否被 Steam 风控。'
       : '请检查网络/代理设置，确认服务器能访问 steamcommunity.com。';
-    return res.status(500).json(withInventoryMeta({
+    return res.status(500).json(await withInventoryMeta({
       error: 'Failed to fetch inventory',
       details: `${error.message}。${hints}`,
       fallbackErrors: errors,
@@ -1541,7 +1618,7 @@ async function fetchPublicInventoryByTradeUrl(tradeUrl) {
     }
   }
 
-  return withInventoryMeta({
+  return await withInventoryMeta({
     source: 'trade_url',
     steamId: parsed.steamId,
     token: parsed.token ?? null,
