@@ -288,3 +288,32 @@
 ### 后续建议
 - `.env` 里仍建议配置 `PUBLIC_BASE_URL=https://你的公网域名`（反代头不稳定时作为兜底）。
 - 若仍异常，抓取一次 `/api/auth/steam` 请求与 302 Location，确认是否仍有中间层改写。
+
+---
+
+## 2026-04-01（补丁：`openid.return_to` 一致仍报 `Failed to verify assertion`）
+
+### 问题现象
+- 回调错误返回类似：
+  - `details: Failed to verify assertion`
+  - `expectedReturnURL` 与 `openidReturnTo` 文面看起来一致（例如都为 `https://csskin.666666.li/api/auth/steam/return`）。
+- 这说明问题不再是“明显的域名不一致”，而是断言校验阶段仍可能出现边缘差异。
+
+### 本轮修复
+1. **新增断言失败重试逻辑（仅一次）**
+   - 在 `/api/auth/steam/return` 回调中，当命中 `Failed to verify assertion` 时，触发一次兜底重试。
+   - 重试时优先采用 Steam 回调参数里的 `openid.return_to` 作为 `returnURL`，并用其 `origin` 重新计算 `realm`。
+
+2. **新增辅助函数**
+   - `buildSteamAuthOptionsFromOpenIdReturnTo(req, authOptions)`：
+     - 安全解析 `openid.return_to`；
+     - 构造 `{ returnURL, realm }` 覆盖项；
+     - 解析失败则不启用重试（保持原流程）。
+
+3. **增强日志可观测性**
+   - 新增 `[WARN] Steam OpenID callback verify assertion failed, retry with openid.return_to`，同时打印重试前后 `realm/returnURL`。
+   - 若重试仍失败，输出 `[ERROR] Steam OpenID callback failed after retry`，便于与首次失败区分。
+
+### 结果与价值
+- 对“看起来 return URL 一样但仍断言失败”的场景增加了代码级兜底，不再只依赖初始推断参数。
+- 避免重复陷入同类故障时只能靠人工反复改 `.env` 的低效排障路径。
