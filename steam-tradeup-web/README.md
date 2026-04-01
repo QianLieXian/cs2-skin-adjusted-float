@@ -33,10 +33,13 @@ npm run start
    - `STEAM_OPENID_PROVIDER=https://steamcommunity.com/openid`
 2. 如果仍超时，配置代理（任选一种，示例端口 `7897`）：
    - `STEAM_PROXY_URL=http://127.0.0.1:7897`
-   - 或 `HTTPS_PROXY=http://127.0.0.1:7897`（也兼容 `HTTP_PROXY`）
-3. 重启服务 `npm run start`。
+   - 或 `STEAM_PROXY_PORT=7897`（默认主机为 `127.0.0.1`）
+   - Clash 用户也可直接设 `MIXED_PROXY_PORT=7897` 或 `CLASH_MIXED_PORT=7897`
+3. 若系统里有旧的 `HTTP_PROXY/HTTPS_PROXY=127.0.0.1:7890`，本项目默认不会再自动使用它们，避免误连失败。
+4. 重启服务 `npm run start`。
 
 > 代理开启后，Steam 登录、OpenID 发现、公开库存读取都会走该代理。
+> 如需强制使用系统代理，请额外设置 `STEAM_USE_SYSTEM_PROXY=true`。
 
 
 这是依赖未安装或安装不完整导致的。请在 `steam-tradeup-web` 目录执行：
