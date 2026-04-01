@@ -8,6 +8,7 @@
 - 内置哈乐昆 / 攀升 / 寒带 / 热辐射 / 墨彩收藏品全部饰品数据（共 120 条，含每个饰品的最小/最大磨损）。
 - 根据库存材料平均磨损，计算最接近目标值的输出饰品候选。
 - 提供 Steam 登录与库存读取接口（需要配置 Steam API Key）。
+- 支持直接粘贴交易链接读取公开库存（无需 Steam 登录），并标记交易冷却/限制中的物品。
 
 ## 快速启动
 
@@ -27,6 +28,16 @@ npm run start
    - Realm: `http://localhost:5173/`
    - Return URL: `http://localhost:5173/api/auth/steam/return`
 3. 点击页面 `Steam 登录（需后端）` 完成授权。
+
+## 无登录读取库存（推荐）
+
+如果你本地不好配置 Steam OpenID，可直接在前端输入交易链接（Trade Offer URL）：
+
+1. 打开 Steam 客户端或网页，复制你的交易链接（形如 `https://steamcommunity.com/tradeoffer/new/?partner=...&token=...`）。
+2. 粘贴到页面“通过交易链接读取库存”输入框。
+3. 后端会通过 `steamcommunity.com/inventory/{steamId}/730/2` 拉取公开库存，并展示可交易状态/冷却提示。
+
+> 注意：这种方式不需要登录，但仍依赖库存公开可见；且默认不会自动带出 float，需要结合 inspect 接口补全。
 
 > 注意：Steam 官方库存 API 不稳定提供 float 值，因此 `server.js` 里已预留 CSFloat inspect 对接位。生产环境建议你把每件皮肤 inspect link 送去 CSFloat 接口，回填真实 float。
 
