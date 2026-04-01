@@ -257,7 +257,7 @@ passport.use(
       realm: STEAM_REALM || defaultSteamRealm,
       apiKey: STEAM_API_KEY,
       providerURL: normalizeOpenIdProvider(STEAM_OPENID_PROVIDER),
-      stateless: true
+      stateless: false
     },
     (_identifier, profile, done) => {
       return done(null, {
@@ -322,7 +322,25 @@ function buildSteamAuthOptions(req, { persistForCallback = false } = {}) {
   };
 }
 
+const canonicalBaseUrl = new URL(normalizedBaseUrl);
+function getCanonicalRedirect(req) {
+  const host = String(req.get('host') ?? '').trim();
+  if (!host) return null;
+  if (host === canonicalBaseUrl.host) return null;
+  const target = new URL(req.originalUrl || '/', canonicalBaseUrl);
+  return target.toString();
+}
+
 app.get('/api/auth/steam', (req, res, next) => {
+  const canonicalRedirect = getCanonicalRedirect(req);
+  if (canonicalRedirect) {
+    console.warn('[WARN] Steam OpenID start host mismatch, redirecting to canonical host', {
+      currentHost: req.get('host'),
+      canonicalHost: canonicalBaseUrl.host,
+      redirect: canonicalRedirect
+    });
+    return res.redirect(canonicalRedirect);
+  }
   const authOptions = buildSteamAuthOptions(req, { persistForCallback: true });
   console.log('[INFO] Steam OpenID start', {
     host: req.get('host'),
@@ -335,6 +353,15 @@ app.get('/api/auth/steam', (req, res, next) => {
 });
 
 app.get('/api/auth/steam/return', (req, res, next) => {
+  const canonicalRedirect = getCanonicalRedirect(req);
+  if (canonicalRedirect) {
+    console.warn('[WARN] Steam OpenID return host mismatch, redirecting to canonical host', {
+      currentHost: req.get('host'),
+      canonicalHost: canonicalBaseUrl.host,
+      redirect: canonicalRedirect
+    });
+    return res.redirect(canonicalRedirect);
+  }
   const authOptions = buildSteamAuthOptions(req);
   console.log('[INFO] Steam OpenID return', {
     host: req.get('host'),
