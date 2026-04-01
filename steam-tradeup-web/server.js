@@ -548,6 +548,22 @@ function buildSteamAuthOptions(req, { persistForCallback = false } = {}) {
   };
 }
 
+function buildSteamAuthOptionsFromOpenIdReturnTo(req, authOptions = {}) {
+  const openidReturnToRaw = String(req.query?.['openid.return_to'] ?? '').trim();
+  if (!openidReturnToRaw) return null;
+  try {
+    const parsed = new URL(openidReturnToRaw);
+    const realm = `${parsed.origin}/`;
+    return {
+      ...authOptions,
+      realm,
+      returnURL: openidReturnToRaw
+    };
+  } catch {
+    return null;
+  }
+}
+
 const canonicalBaseUrl = new URL(normalizedBaseUrl);
 function getCanonicalRedirect(req) {
   if (!enforceCanonicalHost) return null;
@@ -609,6 +625,62 @@ app.get('/api/auth/steam/return', (req, res, next) => {
 
   authenticateSteam(req, res, next, authOptions, (error, user) => {
     if (error) {
+      const shouldRetryWithOpenIdReturnTo =
+        /Failed to verify assertion/i.test(String(error.message ?? '')) &&
+        !req.__steamRetriedWithOpenIdReturnTo;
+      if (shouldRetryWithOpenIdReturnTo) {
+        const retryAuthOptions = buildSteamAuthOptionsFromOpenIdReturnTo(req, authOptions);
+        if (retryAuthOptions) {
+          req.__steamRetriedWithOpenIdReturnTo = true;
+          console.warn('[WARN] Steam OpenID callback verify assertion failed, retry with openid.return_to', {
+            previousReturnURL: authOptions.returnURL,
+            retryReturnURL: retryAuthOptions.returnURL,
+            previousRealm: authOptions.realm,
+            retryRealm: retryAuthOptions.realm
+          });
+          return authenticateSteam(req, res, next, retryAuthOptions, (retryError, retryUser) => {
+            if (retryError) {
+              error = retryError;
+              user = retryUser;
+            } else {
+              error = null;
+              user = retryUser;
+            }
+            if (!error) {
+              if (!user) {
+                console.warn('[WARN] Steam OpenID callback retry returned no user');
+                return res.redirect('/');
+              }
+              return req.logIn(user, (loginError) => {
+                if (loginError) {
+                  console.error('[ERROR] Failed to establish Steam session after retry', loginError);
+                  return next(loginError);
+                }
+                if (req.session?.steamAuth) delete req.session.steamAuth;
+                if (req.session?.steamClientOrigin) delete req.session.steamClientOrigin;
+                return res.redirect('/');
+              });
+            }
+            if (trySwitchOpenIdProvider(error)) {
+              return authenticateSteam(req, res, next, authOptions);
+            }
+            console.error('[ERROR] Steam OpenID callback failed after retry', {
+              message: error.message,
+              stack: error.stack,
+              openidReturnTo: req.query['openid.return_to'] ?? null,
+              expectedReturnURL: retryAuthOptions.returnURL,
+              expectedRealm: retryAuthOptions.realm
+            });
+            return res.status(401).json({
+              error: 'Steam OpenID callback failed',
+              details: error.message,
+              expectedReturnURL: retryAuthOptions.returnURL,
+              expectedRealm: retryAuthOptions.realm,
+              openidReturnTo: req.query['openid.return_to'] ?? null
+            });
+          });
+        }
+      }
       if (trySwitchOpenIdProvider(error)) {
         return authenticateSteam(req, res, next, authOptions);
       }
