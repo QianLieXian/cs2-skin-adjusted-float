@@ -105,3 +105,30 @@
 ### 结果
 - 代码层面已补齐“默认端点 + 回退重试 + 可观测性”三项能力，可覆盖你日志中的发现失败场景。
 - 若仍失败，优先检查运行主机是否可连通 `steamcommunity.com`（DNS、TLS、出口代理、面板防火墙）。
+
+---
+
+## 2026-04-01（混合端口修正 + OpenID 发现失败 + 交易链接 ETIMEDOUT）
+
+### 问题现象
+- 启动日志提示代理回退到 `http://127.0.0.1:25561/`，但你的混合端口实际是 **26561**。
+- Steam 登录报错：`InternalOpenIDError: Failed to discover OP endpoint URL`。
+- 交易链接读取偶发超时：`connect ETIMEDOUT 31.13.94.49:443`。
+
+### 本轮修复
+1. **修正默认混合端口为 26561**
+   - 在未显式设置 `STEAM_PROXY_PORT/MIXED_PROXY_PORT/CLASH_MIXED_PORT` 时，自动补入默认候选 `127.0.0.1:26561`。
+   - 避免误走 25561 导致“代理不可达→直接连接”的错误判断。
+
+2. **修正 OpenID 默认 Provider 策略**
+   - 默认 Provider 改回 `https://steamcommunity.com/openid`（发现流程更稳定）。
+   - 仍保留候选回退：`/openid` 与 `/openid/login` 双端点自动切换，遇到 discover 失败时自动尝试下一候选。
+
+3. **修复交易链接读取超时路径**
+   - axios 客户端统一设置 `proxy: false`，防止隐式继承系统环境代理。
+   - 新增请求级“代理失败后直连重试”逻辑：当代理链路报 `ETIMEDOUT/ECONNRESET/ECONNREFUSED/EHOSTUNREACH/ENETUNREACH` 时，自动直连重试一次。
+
+### 结果
+- 默认端口与本地混合端口预期一致（26561）。
+- OpenID 发现失败场景增加了更稳的默认端点和自动回退。
+- 交易链接读取在代理不稳定时具备自动降级直连能力，降低 `ETIMEDOUT` 直接失败概率。
