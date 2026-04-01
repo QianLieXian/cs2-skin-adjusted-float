@@ -1,5 +1,40 @@
 # 修复检查日志（2026-04-01）
 
+## 2026-04-01（库存精确 float / 冷却库存数量 / 汰换品级规则再修）
+
+### 问题现象
+- 你反馈“库存里很多 float 仍是估算，不是精确值”。
+- 你反馈“库存总数只显示几十件，和真实库存（含交易冷却）不一致”。
+- 你反馈“合成逻辑看起来像什么品级都能混合”。
+
+### 根因判断
+1. **inspect link 提取过窄**：之前主要从 `actions` 里找 `Inspect in Game`，会漏掉部分在 `owner_actions/market_actions` 里的检视链接，导致 CSFloat 精确查询命中率偏低。
+2. **已登录库存优先链路仍可能偏少**：`steamcommunity inventory` 在部分账号/网络场景会出现数量偏少（常见是冷却/限制物品可见性差异），而旧逻辑即使拿到较少结果也直接返回。
+3. **legacy 回退历史截断**：`IEconItems_730` 回退路径还残留了 `.slice(0, 200)` 的历史截断，可能进一步压低数量。
+4. **汰换品级规则核对**：前端反推已按“目标下一级输入品级”过滤（`it.rarity === previousRarity`），本轮再次核对并保留该强约束，继续按 V 社 CS 逻辑执行。
+
+### 本轮修复
+1. **扩大 inspect link 提取范围，提升精确 float 覆盖**
+   - 新增统一检视链接提取器：
+     - 依次扫描 `owner_actions` / `actions` / `market_actions`
+     - 同时匹配 `Inspect in Game` 和 `csgo_econ_action_preview`
+     - 处理 `&amp;`、`%owner_steamid%`、`%assetid%` 替换
+   - 结果：更多库存条目可走 CSFloat 检视接口拿到精确磨损值（`floatSource=csfloat_inspect`）。
+
+2. **已登录库存新增“数量优先”对比策略（覆盖冷却库存）**
+   - 在主链路 `steamcommunity inventory` 成功后，如果本次请求提供了 API Key，会再拉取 `IEconService` 结果做数量对比。
+   - 当 `IEconService.total > community.total` 时，优先返回 `IEconService` 结果，并明确标注该来源更可能覆盖冷却/限制物品。
+   - 结果：减少“我真实库存很多，但页面只显示几十件”的情况。
+
+3. **移除 legacy 回退 200 件硬截断**
+   - 删除 `IEconItems_730` 回退链路中的 `.slice(0, 200)`。
+   - 结果：即使走 legacy 回退，也不会再被前端历史截断逻辑限制。
+
+### 结果
+- “精确 float”占比提升（inspect link 命中更完整）。
+- “库存总数偏少”问题有了主动纠偏策略（community 与 IEconService 对比取更全）。
+- 汰换规则继续按“同输入品级（目标下一级）”执行，不允许跨品级混合。
+
 ## 2026-04-01（库存数量/未知收藏/float 缺失/纪念品与冷却拆分修复）
 
 ### 问题现象

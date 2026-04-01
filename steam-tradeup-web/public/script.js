@@ -306,8 +306,11 @@ async function loadSkinData() {
 }
 
 function renderResult(rows, targetFloat, outputSkin, recipeCount) {
+  const previousRarity = RARITY_ORDER[RARITY_ORDER.indexOf(outputSkin.rarity) - 1];
+  const rarityRuleText = previousRarity
+    ? `汰换规则：仅使用同一输入品级（${RARITY_ZH[previousRarity] ?? previousRarity}）材料。`
+    : '汰换规则：该目标品级无可用下一级输入材料。';
   if (!rows.length) {
-    const previousRarity = RARITY_ORDER[RARITY_ORDER.indexOf(outputSkin.rarity) - 1];
     const rarityHint = previousRarity
       ? `当前目标品级需要使用同一输入品级（${RARITY_ZH[previousRarity] ?? previousRarity}）材料。`
       : '该目标品级没有可用于汰换的下一级输入材料。';
@@ -338,6 +341,7 @@ function renderResult(rows, targetFloat, outputSkin, recipeCount) {
   ui.result.innerHTML = `
     <p>目标饰品：<strong class="${RARITY_CLASS[outputSkin.rarity] ?? ''}">${makeBreadcrumb(outputSkin)}</strong></p>
     <p>目标磨损：<strong>${fmt16(targetFloat)}</strong>（范围 ${fmt16(outputSkin.minFloat)} ~ ${fmt16(outputSkin.maxFloat)}）</p>
+    <p>${rarityRuleText}</p>
     <div class="table-wrap">
       <table>
         <thead>

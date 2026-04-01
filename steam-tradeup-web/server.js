@@ -1279,6 +1279,32 @@ function normalizeInventory(items = []) {
   }));
 }
 
+function normalizeInspectLink(rawLink = '', steamId = '', assetId = '') {
+  const decoded = String(rawLink ?? '')
+    .replace(/&amp;/g, '&')
+    .trim();
+  if (!decoded) return '';
+  return decoded
+    .replace('%owner_steamid%', steamId)
+    .replace('%assetid%', assetId);
+}
+
+function pickInspectLink(desc = {}, steamId = '', assetId = '') {
+  const actionGroups = [desc.owner_actions, desc.actions, desc.market_actions];
+  for (const group of actionGroups) {
+    if (!Array.isArray(group)) continue;
+    for (const action of group) {
+      const link = String(action?.link ?? '');
+      const name = String(action?.name ?? '');
+      if (/Inspect in Game/i.test(name) || /csgo_econ_action_preview/i.test(link)) {
+        const normalized = normalizeInspectLink(link, steamId, assetId);
+        if (normalized) return normalized;
+      }
+    }
+  }
+  return '';
+}
+
 async function fetchInventory(steamId, apiKey) {
   const url = `${STEAM_WEB_API}/IEconItems_730/GetPlayerItems/v1/`;
   const { data } = await http.get(url, {
@@ -1298,10 +1324,7 @@ function parseAssetDescriptionInventoryPayload(payload, steamId) {
   const items = assets.map((asset) => {
     const key = `${asset.classid}_${asset.instanceid}`;
     const desc = descriptions.get(key) ?? asset ?? {};
-    const inspectAction = (desc.actions ?? []).find((a) => /Inspect in Game/i.test(a.name));
-    const inspectLink = (inspectAction?.link ?? '')
-      .replace('%owner_steamid%', steamId)
-      .replace('%assetid%', asset.assetid ?? asset.id ?? '');
+    const inspectLink = pickInspectLink(desc, steamId, asset.assetid ?? asset.id ?? '');
     const cooldownText = extractCooldownText([...(desc.owner_descriptions ?? []), ...(desc.descriptions ?? [])]);
     const tradable = Number(desc.tradable ?? 1) === 1;
     const permanentUntradable =
@@ -1332,10 +1355,7 @@ function parseLegacyCommunityInventoryPayload(payload, steamId) {
   const items = assets.map((asset) => {
     const key = `${asset.classid}_${asset.instanceid ?? '0'}`;
     const desc = rgDescriptions[key] ?? {};
-    const inspectAction = (desc.actions ?? []).find((a) => /Inspect in Game/i.test(a.name));
-    const inspectLink = (inspectAction?.link ?? '')
-      .replace('%owner_steamid%', steamId)
-      .replace('%assetid%', asset.id ?? asset.assetid ?? '');
+    const inspectLink = pickInspectLink(desc, steamId, asset.id ?? asset.assetid ?? '');
     const cooldownText = extractCooldownText([...(desc.owner_descriptions ?? []), ...(desc.descriptions ?? [])]);
     const tradable = Number(desc.tradable ?? 1) === 1;
     const permanentUntradable =
@@ -1483,6 +1503,21 @@ app.get('/api/inventory', requireAuth, async (req, res) => {
 
   try {
     const communityResult = await fetchInventoryFromCommunity(req.user.steamId);
+    const apiKey = resolveSteamApiKey(req);
+    if (apiKey) {
+      try {
+        const econServiceResult = await fetchInventoryFromEconService(req.user.steamId, apiKey);
+        if (econServiceResult.total > communityResult.total) {
+          return res.json(await withInventoryMeta({
+            ...econServiceResult,
+            inspectApi: `${CSFLOAT_INSPECT_API}/?url=<inspect_link>`,
+            note: '库存使用 IEconService 结果（数量高于社区库存），通常可覆盖更多冷却/限制物品。'
+          }));
+        }
+      } catch (econServiceCompareError) {
+        pushError('econ_service_compare', econServiceCompareError);
+      }
+    }
     return res.json(await withInventoryMeta({
       ...communityResult,
       inspectApi: `${CSFLOAT_INSPECT_API}/?url=<inspect_link>`,
@@ -1510,7 +1545,6 @@ app.get('/api/inventory', requireAuth, async (req, res) => {
         const items = await fetchInventory(req.user.steamId, apiKey);
         const normalized = items
           .filter((it) => it.inventory > 0)
-          .slice(0, 200)
           .map((it) => ({
             id: String(it.id),
             marketHashName: it.market_hash_name ?? '',
