@@ -13,19 +13,23 @@
 
   const APP_ID = 730;
   const CONTEXT_ID = 2;
-  const EXTERIOR_MIDPOINT = {
-    'Factory New': 0.035,
-    'Minimal Wear': 0.11,
-    'Field-Tested': 0.265,
-    'Well-Worn': 0.415,
-    'Battle-Scarred': 0.725,
-    '崭新出厂': 0.035,
-    '略有磨损': 0.11,
-    '久经沙场': 0.265,
-    '破损不堪': 0.415,
-    '战痕累累': 0.725
-  };
-  const EXTERIOR_TAGS = new Set(Object.keys(EXTERIOR_MIDPOINT));
+  const EXTERIOR_TAGS = new Set([
+    'Factory New',
+    'Minimal Wear',
+    'Field-Tested',
+    'Well-Worn',
+    'Battle-Scarred',
+    '崭新出厂',
+    '略有磨损',
+    '久经沙场',
+    '破损不堪',
+    '战痕累累'
+  ]);
+
+  const INSPECT_API_CANDIDATES = [
+    'https://api.csgofloat.com',
+    'https://api.csfloat.com'
+  ];
 
   function readProfileIdFromUrl() {
     const parts = window.location.pathname.split('/').filter(Boolean);
@@ -207,22 +211,112 @@
     return { cooldown, tradableAfter };
   }
 
-  function readFloatValue(description, exterior) {
+  function normalizeFloatValue(raw) {
+    const value = Number(raw);
+    if (!Number.isFinite(value) || value < 0 || value > 1) return null;
+    return value;
+  }
+
+  function formatFloat16(value) {
+    return typeof value === 'number' ? value.toFixed(16) : null;
+  }
+
+  function parseFloatFromInspectResponse(payload) {
+    if (payload && typeof payload === 'object' && payload.iteminfo && payload.iteminfo.error) {
+      return null;
+    }
+    const candidates = [
+      payload?.iteminfo?.float,
+      payload?.iteminfo?.wear,
+      payload?.iteminfo?.floatvalue,
+      payload?.iteminfo?.float_value,
+      payload?.item?.float,
+      payload?.item?.wear,
+      payload?.item?.floatvalue,
+      payload?.item?.float_value,
+      payload?.float,
+      payload?.wear,
+      payload?.floatvalue,
+      payload?.float_value
+    ];
+    for (const raw of candidates) {
+      const parsed = normalizeFloatValue(raw);
+      if (typeof parsed === 'number') return parsed;
+    }
+    return null;
+  }
+
+  function readFloatValue(description) {
     const candidates = [description?.floatvalue, description?.float_value];
     for (const raw of candidates) {
-      const value = Number(raw);
-      if (Number.isFinite(value) && value >= 0 && value <= 1) return { floatValue: value, floatSource: 'inspect_link' };
+      const value = normalizeFloatValue(raw);
+      if (typeof value === 'number') return { floatValue: value, floatValue16: formatFloat16(value), floatSource: 'inventory_api' };
     }
-    if (exterior && EXTERIOR_MIDPOINT[exterior] !== undefined) {
-      return { floatValue: EXTERIOR_MIDPOINT[exterior], floatSource: 'estimated_from_exterior' };
+    return { floatValue: null, floatValue16: null, floatSource: 'missing' };
+  }
+
+  async function fetchInspectFloat(inspectLink) {
+    if (!inspectLink) return null;
+
+    for (const baseUrl of INSPECT_API_CANDIDATES) {
+      try {
+        const url = new URL(baseUrl);
+        url.searchParams.set('url', inspectLink);
+        const response = await fetch(url.toString(), { credentials: 'omit' });
+        if (!response.ok) continue;
+        const payload = await response.json();
+        const parsed = parseFloatFromInspectResponse(payload);
+        if (typeof parsed === 'number') return parsed;
+      } catch (_) {
+        // continue to next inspect api candidate
+      }
     }
-    return { floatValue: null, floatSource: 'missing' };
+
+    return null;
+  }
+
+  async function enrichItemsWithExactFloats(items) {
+    const groupedByInspect = new Map();
+    items.forEach((item, index) => {
+      if (typeof item.floatValue === 'number') return;
+      if (!item.inspectLink) return;
+      const key = String(item.inspectLink);
+      const indexes = groupedByInspect.get(key) || [];
+      indexes.push(index);
+      groupedByInspect.set(key, indexes);
+    });
+
+    const links = [...groupedByInspect.keys()];
+    const concurrency = 6;
+    let cursor = 0;
+
+    async function worker() {
+      while (cursor < links.length) {
+        const currentIndex = cursor;
+        cursor += 1;
+        const link = links[currentIndex];
+        const floatValue = await fetchInspectFloat(link);
+        if (typeof floatValue !== 'number') continue;
+        const floatValue16 = formatFloat16(floatValue);
+        for (const itemIndex of groupedByInspect.get(link) || []) {
+          items[itemIndex] = {
+            ...items[itemIndex],
+            floatValue,
+            floatValue16,
+            floatSource: 'csfloat_inspect'
+          };
+        }
+      }
+    }
+
+    await Promise.all(Array.from({ length: Math.min(concurrency, links.length) }, () => worker()));
+    return items;
   }
 
   function normalizeItem(asset, description, steamId) {
     const exterior = readExterior(description);
     const { cooldown, tradableAfter } = parseCooldown(description);
-    const { floatValue, floatSource } = readFloatValue(description, exterior);
+    const { floatValue, floatValue16, floatSource } = readFloatValue(description);
     const marketHashName = description?.market_hash_name || description?.name || 'Unknown Item';
     const isSouvenir = /Souvenir|纪念品/i.test(marketHashName);
     const isStatTrak = /StatTrak/i.test(marketHashName);
@@ -236,6 +330,7 @@
       marketHashName,
       floatValue,
       floatSource,
+      floatValue16,
       exterior,
       cooldown,
       tradableAfter,
@@ -248,7 +343,7 @@
     };
   }
 
-  function buildExportPayload(steamId, inventoryData) {
+  async function buildExportPayload(steamId, inventoryData) {
     const descMap = new Map(inventoryData.descriptions.map((desc) => [`${desc.classid}_${desc.instanceid}`, desc]));
     const items = inventoryData.assets
       .filter((asset) => Number(asset?.appid) === APP_ID)
@@ -259,6 +354,8 @@
       })
       .filter(Boolean);
 
+    await enrichItemsWithExactFloats(items);
+
     return {
       version: 1,
       source: 'steam_inventory_exporter',
@@ -266,8 +363,8 @@
       steamId,
       total: items.length,
       cooldownCount: items.filter((it) => it.cooldown).length,
-      exactFloatCount: items.filter((it) => typeof it.floatValue === 'number' && it.floatSource === 'inspect_link').length,
-      estimatedFloatCount: items.filter((it) => it.floatSource === 'estimated_from_exterior').length,
+      exactFloatCount: items.filter((it) => typeof it.floatValue === 'number').length,
+      estimatedFloatCount: 0,
       missingFloatCount: items.filter((it) => typeof it.floatValue !== 'number').length,
       items
     };
@@ -290,7 +387,7 @@
 
   async function exportInventory() {
     const { steamId, inventoryData } = await fetchInventoryPagesWithFallback();
-    const payload = buildExportPayload(steamId, inventoryData);
+    const payload = await buildExportPayload(steamId, inventoryData);
     downloadAsJs(payload);
     return payload;
   }

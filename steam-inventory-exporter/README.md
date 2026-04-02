@@ -13,9 +13,9 @@
 - 7 天交易限制相关标记（`cooldown` + `tradableAfter` 文本）；
 - `inspectLink`（用于后续更精确磨损补全）；
 - float：
-  - 若页面里有直接值则记为 `inspect_link`；
-  - 否则按 Exterior 做区间中位估算（`estimated_from_exterior`）；
-  - 还拿不到则标记 `missing`。
+  - 优先使用库存响应里已有的 float（`inventory_api`）；
+  - 若缺失，则自动用 `inspectLink` 请求 CSFloat 接口补全（`csfloat_inspect`）；
+  - 仍失败则标记为 `missing`（不再做任何估算）。
 
 导出文件为 `window.CS2_INVENTORY_EXPORT = {...};` 格式，可直接导入本项目前端。
 
@@ -55,8 +55,9 @@ window.CS2_INVENTORY_EXPORT = {
     {
       id: '1234567890',
       marketHashName: 'AK-47 | Slate (Field-Tested)',
-      floatValue: 0.265,
-      floatSource: 'estimated_from_exterior',
+      floatValue: 0.1234567890123456,
+      floatValue16: '0.1234567890123456',
+      floatSource: 'csfloat_inspect',
       cooldown: true,
       tradableAfter: 'Tradable After Apr 08, 2026 (7:00:00) GMT',
       inspectLink: 'steam://rungame/730/...',
