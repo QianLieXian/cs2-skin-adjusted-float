@@ -1,5 +1,37 @@
 # 修复检查日志（2026-04-01）
 
+## 2026-04-02（新增：库存离线导出链路，补充 7 天冷却识别与前端本地导入）
+
+### 需求背景
+- 现有在线库存读取在部分账号场景下，无法稳定拿到“7 天冷却状态”与完整磨损信息，导致反向炼金输入池不全。
+- 你要求新增“在 Steam 饰品页面一键导出，再导入本项目”的离线方案，降低后端依赖。
+
+### 本轮新增
+1. **新增独立导出工具目录 `steam-inventory-exporter/`**
+   - 提供油猴脚本：`cs2-inventory-exporter.user.js`。
+   - 提供浏览器扩展：`extension/manifest.json` + `extension/content.js`。
+   - 提供说明文档：`steam-inventory-exporter/README.md`。
+
+2. **导出能力**
+   - 支持从 Steam 库存接口分页读取 CS2 物品（`730/2`）。
+   - 导出字段包含：
+     - `cooldown`（基于 `owner_descriptions` 的 Tradable After 文本识别）
+     - `tradableAfter`（原始可交易时间文本）
+     - `floatValue` / `floatSource`
+     - `inspectLink`、`rarity`、`collection`、`eligibleForTradeup` 等
+   - 导出格式统一为 `window.CS2_INVENTORY_EXPORT = {...};`，便于前端直接导入。
+
+3. **前端新增“离线导入库存文件”**
+   - 在 `steam-tradeup-web/public/index.html` 增加文件选择与导入按钮。
+   - 在 `steam-tradeup-web/public/script.js` 增加导入解析逻辑：
+     - 兼容 JSON、`window.xxx = {...}`、`export default {...}` 三类格式；
+     - 规范化导入条目并回填统计信息（总数/冷却数/可炼金数/float 完整度）。
+   - 导入后直接进入现有反向炼金计算链路，无需依赖后端实时拉取。
+
+### 结果
+- 现在可通过 Steam 页面离线导出，补齐“冷却识别 + 磨损估算 + inspectLink”数据，再导入本地计算。
+- 对“读取不到 7 天冷却物品”这一类问题，新增了可操作且可复现的替代工作流。
+
 
 ## 2026-04-02（再修：估算占比高、float 小数精度观感差，增强本地 inspect 解码命中率）
 

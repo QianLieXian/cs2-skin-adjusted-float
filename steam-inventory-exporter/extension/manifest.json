@@ -1,0 +1,18 @@
+{
+  "manifest_version": 3,
+  "name": "CS2 Inventory Exporter",
+  "version": "1.0.0",
+  "description": "在 Steam 库存页面导出 CS2 饰品数据（含冷却标记和磨损估算）",
+  "permissions": ["downloads"],
+  "host_permissions": ["https://steamcommunity.com/*"],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://steamcommunity.com/profiles/*/inventory*",
+        "https://steamcommunity.com/id/*/inventory*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

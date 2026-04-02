@@ -14,6 +14,8 @@ button + button { margin-left: 8px; }
 .trade-url-box { margin: 12px 0; }
 .trade-url-box button { margin-top: 8px; }
 .api-key-box { margin: 12px 0; }
+.import-box { margin: 12px 0; }
+.import-box input[type="file"] { flex: 1; min-width: 260px; }
 .api-direct-grid { margin-top: 10px; }
 .api-direct-action { display: flex; align-items: end; }
 .api-direct-action button { width: 100%; }

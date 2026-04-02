@@ -38,6 +38,14 @@
         </div>
         <p class="muted small">不会提交到第三方，仅随本工具请求发送到你当前部署的后端。<a href="https://steamcommunity.com/dev/apikey" target="_blank" rel="noreferrer noopener">如何获取我的 API Key？</a></p>
       </div>
+      <div class="import-box">
+        <label for="inventoryImportFile">离线导入：选择由油猴脚本/浏览器插件导出的库存 JS 文件</label>
+        <div class="row">
+          <input id="inventoryImportFile" type="file" accept=".js,.json,application/json,text/javascript" />
+          <button id="importInventoryBtn" class="secondary">导入本地库存文件</button>
+        </div>
+        <p class="muted small">建议从 Steam 个人库存页面导出，能补充 7 天冷却状态及更多磨损信息。</p>
+      </div>
       <pre id="authStatus">未登录</pre>
       <div id="inventoryMeta"></div>
     </section>

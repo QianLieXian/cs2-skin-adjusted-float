@@ -12,6 +12,8 @@ const ui = {
   exportLogsBtn: document.getElementById('exportLogsBtn'),
   loadByTradeUrlBtn: document.getElementById('loadByTradeUrlBtn'),
   loadByApiKeyBtn: document.getElementById('loadByApiKeyBtn'),
+  importInventoryBtn: document.getElementById('importInventoryBtn'),
+  inventoryImportFile: document.getElementById('inventoryImportFile'),
   tradeUrlInput: document.getElementById('tradeUrlInput'),
   steamApiKeyInput: document.getElementById('steamApiKeyInput'),
   steamIdInput: document.getElementById('steamIdInput'),
@@ -33,6 +35,7 @@ let inventoryItems = [];
 let skinsByName = new Map();
 const API_KEY_STORAGE_KEY = 'steam_web_api_key';
 const STEAM_ID_STORAGE_KEY = 'steam_id_64';
+const IMPORT_FILE_MAX_BYTES = 8 * 1024 * 1024;
 
 const COLLECTION_ZH = {
   'The Harlequin Collection': '哈乐昆收藏品',
@@ -464,6 +467,90 @@ function renderInventoryMeta(meta) {
   `;
 }
 
+function parseInventoryExportText(rawText) {
+  const trimmed = String(rawText ?? '').trim();
+  if (!trimmed) throw new Error('文件为空');
+
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    // 支持 `window.xxx = {...};` / `export default {...};` 的 JS 导出格式
+  }
+
+  const rhsMatch = trimmed.match(/=\s*(\{[\s\S]*\})\s*;?\s*$/);
+  if (rhsMatch) {
+    try {
+      return JSON.parse(rhsMatch[1]);
+    } catch {
+      // 继续走通用提取
+    }
+  }
+
+  const exportDefault = trimmed.match(/export\s+default\s+(\{[\s\S]*\})\s*;?\s*$/);
+  if (exportDefault) {
+    try {
+      return JSON.parse(exportDefault[1]);
+    } catch {
+      // ignore
+    }
+  }
+  throw new Error('无法识别导出文件格式，请重新导出');
+}
+
+function normalizeImportedItem(rawItem, index) {
+  const name = String(rawItem?.marketHashName ?? rawItem?.name ?? '').trim();
+  if (!name) return null;
+  const id = String(rawItem?.id ?? rawItem?.assetId ?? `imported-${index}`);
+  const numericFloat = Number(rawItem?.floatValue);
+  return {
+    id,
+    marketHashName: name,
+    floatValue: Number.isFinite(numericFloat) ? numericFloat : null,
+    floatSource: typeof rawItem?.floatSource === 'string' ? rawItem.floatSource : (Number.isFinite(numericFloat) ? 'imported' : 'missing'),
+    cooldown: Boolean(rawItem?.cooldown),
+    eligibleForTradeup: rawItem?.eligibleForTradeup !== false,
+    isStatTrak: Boolean(rawItem?.isStatTrak),
+    isSouvenir: Boolean(rawItem?.isSouvenir),
+    rarity: typeof rawItem?.rarity === 'string' ? rawItem.rarity : null,
+    collection: typeof rawItem?.collection === 'string' ? rawItem.collection : null
+  };
+}
+
+async function importInventoryFromFile() {
+  const file = ui.inventoryImportFile?.files?.[0];
+  if (!file) {
+    ui.authStatus.textContent = '请先选择导出的库存 JS/JSON 文件。';
+    return;
+  }
+  if (file.size > IMPORT_FILE_MAX_BYTES) {
+    ui.authStatus.textContent = '文件过大，请确认导出内容是否正确（建议不超过 8MB）。';
+    return;
+  }
+  try {
+    const text = await file.text();
+    const payload = parseInventoryExportText(text);
+    const rawItems = Array.isArray(payload?.items) ? payload.items : [];
+    if (!rawItems.length) throw new Error('导出文件没有 items 列表');
+    const normalized = rawItems.map(normalizeImportedItem).filter(Boolean);
+    if (!normalized.length) throw new Error('导出条目缺少饰品名称，无法导入');
+    inventoryItems = normalized;
+    const importedMeta = {
+      source: payload?.source || 'userscript_export',
+      total: normalized.length,
+      cooldownCount: normalized.filter((it) => it.cooldown).length,
+      materialCount: normalized.filter((it) => it.eligibleForTradeup !== false).length,
+      missingFloatCount: normalized.filter((it) => typeof it.floatValue !== 'number').length,
+      exactFloatCount: normalized.filter((it) => ['inspect_link', 'api', 'imported', 'csfloat_inspect'].includes(it.floatSource)).length,
+      estimatedFloatCount: normalized.filter((it) => it.floatSource === 'estimated_from_exterior').length,
+      dictionaryMatchedCount: normalized.filter((it) => it.collection && it.rarity).length
+    };
+    ui.authStatus.textContent = `本地导入成功：${normalized.length} 件（冷却 ${importedMeta.cooldownCount} 件）`;
+    renderInventoryMeta(importedMeta);
+  } catch (error) {
+    ui.authStatus.textContent = `本地导入失败：${error.message}`;
+  }
+}
+
 async function loadByApiKeyDirect() {
   const apiKey = getSteamApiKey();
   const steamId = getSteamId64();
@@ -581,6 +668,7 @@ ui.refreshInventoryBtn.addEventListener('click', refreshInventory);
 ui.loadDemoBtn.addEventListener('click', loadDemoInventory);
 ui.loadByTradeUrlBtn.addEventListener('click', loadByTradeUrl);
 ui.loadByApiKeyBtn.addEventListener('click', loadByApiKeyDirect);
+ui.importInventoryBtn.addEventListener('click', importInventoryFromFile);
 ui.exportLogsBtn.addEventListener('click', exportServerLogs);
 ui.collectionSelect.addEventListener('change', refreshRarityOptions);
 ui.raritySelect.addEventListener('change', refreshSkinOptions);
