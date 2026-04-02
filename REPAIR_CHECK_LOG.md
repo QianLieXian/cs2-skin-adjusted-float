@@ -1,5 +1,35 @@
 # 修复检查日志（2026-04-01）
 
+## 2026-04-02（再修：float 全缺失，兼容 CS2 新版自编码 inspect 链接）
+
+### 问题现象
+- 你反馈当前库存统计为：`总数 58 / 精确 float 0 / float 缺失 58`，是典型“全量缺失”。
+- 已有代码虽然做了 inspect 域名回退和链接修复，但在新链接形态下依然可能拿不到 float。
+
+### 根因判断
+1. **CS2 inspect 链接形态升级**
+   - `csfloat/inspect` 官方仓库在 2026-03 标注该服务已 Deprecated，并说明“CS2 inspect link 已自编码物品信息”。
+   - 旧逻辑仍主要依赖 `GET /?url=` 或 `s/a/d` 远端解析，遇到 API 波动/限流时会出现整批缺失。
+2. **解析顺序不够稳**
+   - 旧代码先请求 `?url=`，再尝试参数模式，未优先利用 inspect link 本身可解码的数据。
+
+### 本轮修复
+1. **接入新版 inspect 解码器（本地解析）**
+   - 新增依赖：`@csfloat/cs2-inspect-serializer`（官方维护）。
+   - 在服务端新增 `parseFloatFromEncodedInspectLink`，可直接从 inspect link 解码 `paintwear` 作为 float。
+
+2. **调整 float 解析优先级**
+   - `resolveFloatFromInspectLink` 现在顺序为：
+     1) inspect link 本地解码（新链路，最快且不依赖外网）
+     2) `s/a/d` 参数模式调用 inspect API
+     3) `?url=<inspect_link>` 兼容模式
+     4) 再次本地解码兜底
+   - 这样即使远端 inspect API 不稳定，也不会轻易出现“全缺失”。
+
+### 结果
+- 在新版 CS2 inspect 链接场景下，float 可直接由链接恢复，不再强依赖第三方远端接口。
+- 遇到网络波动时，精确 float 覆盖率明显更稳，可避免再次出现 `exactFloatCount=0` 的整批回归。
+
 ## 2026-04-02（再修：inspect 占位符被错误编码，导致 float 全缺失）
 
 ### 问题现象

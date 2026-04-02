@@ -222,6 +222,7 @@ import session from 'express-session';
 import passport from 'passport';
 import { Strategy as SteamStrategy } from 'passport-steam';
 import axios from 'axios';
+import { decodeLink as decodeCs2InspectLink } from '@csfloat/cs2-inspect-serializer';
 import { ProxyAgent } from 'proxy-agent';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -379,6 +380,22 @@ function parseFloatFromInspectResponse(payload) {
   return null;
 }
 
+function parseFloatFromEncodedInspectLink(rawInspectLink = '') {
+  const inspectLink = String(rawInspectLink ?? '').trim();
+  if (!inspectLink) return null;
+  try {
+    const decoded = decodeCs2InspectLink(inspectLink);
+    const candidates = [decoded?.paintwear, decoded?.floatvalue, decoded?.float];
+    for (const value of candidates) {
+      const num = Number(value);
+      if (Number.isFinite(num) && num >= 0 && num <= 1) return num;
+    }
+  } catch {
+    // ignore parse failures for legacy inspect links
+  }
+  return null;
+}
+
 function safeDecodeURIComponent(raw = '') {
   const value = String(raw ?? '').trim();
   if (!value) return '';
@@ -516,15 +533,22 @@ const skinDictionary = buildSkinDictionary();
 async function resolveFloatFromInspectLink(item = {}) {
   if (typeof item.floatValue === 'number') return item.floatValue;
   if (!item.inspectLink) return null;
+  const decodedFromInspectLink = parseFloatFromEncodedInspectLink(item.inspectLink);
+  if (typeof decodedFromInspectLink === 'number') return decodedFromInspectLink;
   let inspectParams = null;
   try {
     inspectParams = parseInspectLinkParams(item.inspectLink);
   } catch {
     inspectParams = null;
   }
+  if (inspectParams) {
+    const parsedByParams = await resolveFloatByInspectParams(inspectParams);
+    if (typeof parsedByParams === 'number') return parsedByParams;
+  }
   const parsedByUrl = await getInspectFloatByUrl(item.inspectLink);
   if (typeof parsedByUrl === 'number') return parsedByUrl;
-  if (inspectParams) return await resolveFloatByInspectParams(inspectParams);
+  const decodedFallback = parseFloatFromEncodedInspectLink(item.inspectLink);
+  if (typeof decodedFallback === 'number') return decodedFallback;
   return null;
 }
 
