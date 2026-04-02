@@ -1,5 +1,35 @@
 # 修复检查日志（2026-04-01）
 
+
+## 2026-04-02（再修：估算占比高、float 小数精度观感差，增强本地 inspect 解码命中率）
+
+### 问题现象
+- 你反馈库存里大量条目显示 `（估算）`，观感上像“只有固定 0.1100000000000000 / 0.2650000000000000”，与 Buff/悠悠等站点不一致。
+- 根因不是前端小数位显示不够，而是 **精确 float 拿不到时退化成外观估算**，自然会出现很多重复中位值。
+
+### 根因判断
+1. **本地解码入口过窄**
+   - `parseFloatFromEncodedInspectLink` 只尝试把“原始 inspect 字符串”直接喂给解码器。
+   - 遇到 `url=<inspect_link>` 包裹形态、URL 编码形态、或仅包含 encoded payload 的预览字符串时，容易漏解。
+2. **漏解后直接走远端 inspect**
+   - 一旦远端受限流/封禁，就会回落到 exterior 估算，导致“很多条目是估算中位值”。
+
+### 本轮修复
+1. **新增 encoded inspect 多候选提取器**
+   - 新增 `collectEncodedInspectLinkCandidates`，自动构建候选：
+     - 原始字符串
+     - 安全解码字符串
+     - `?url=` 包裹的 inspect 链接及其解码版
+     - 从 `csgo_econ_action_preview` 中提取的纯 encoded payload 规范化链接
+
+2. **本地解码改为“多候选串行尝试”**
+   - `parseFloatFromEncodedInspectLink` 现在会依次尝试全部候选并提取 `paintwear`。
+   - 这样在远端 inspect 不稳定时，仍可优先从链接本身恢复精确 float，显著减少估算占比。
+
+### 结果
+- 前端仍保持 16 位小数展示；同时由于“精确值命中率提高”，列表里会明显减少固定中位估值条目。
+- 在同等网络条件下，`exactFloatCount` 应提升、`estimatedFloatCount` 下降。
+
 ## 2026-04-02（再修：CSFloat 被 Valve 新限流拦截时，float 全缺失兜底）
 
 ### 问题现象

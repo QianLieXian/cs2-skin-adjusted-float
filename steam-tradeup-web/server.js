@@ -380,19 +380,66 @@ function parseFloatFromInspectResponse(payload) {
   return null;
 }
 
-function parseFloatFromEncodedInspectLink(rawInspectLink = '') {
-  const inspectLink = String(rawInspectLink ?? '').trim();
-  if (!inspectLink) return null;
-  try {
-    const decoded = decodeCs2InspectLink(inspectLink);
-    const candidates = [decoded?.paintwear, decoded?.floatvalue, decoded?.float];
-    for (const value of candidates) {
-      const num = Number(value);
-      if (Number.isFinite(num) && num >= 0 && num <= 1) return num;
+function collectEncodedInspectLinkCandidates(rawInspectLink = '') {
+  const raw = String(rawInspectLink ?? '').trim();
+  if (!raw) return [];
+
+  const candidates = [];
+  const push = (value) => {
+    const normalized = String(value ?? '').trim();
+    if (!normalized || candidates.includes(normalized)) return;
+    candidates.push(normalized);
+  };
+
+  push(raw);
+  const decodedOnce = safeDecodeURIComponent(raw);
+  push(decodedOnce);
+
+  const extractPreviewPayload = (value = '') => {
+    const text = String(value ?? '').trim();
+    if (!text) return;
+    const previewMatch = text.match(/csgo_econ_action_preview(?:\s+|%20)([0-9a-f]{18,})/i);
+    if (!previewMatch) return;
+    push(`steam://rungame/730/76561202255233023/+csgo_econ_action_preview ${previewMatch[1].toUpperCase()}`);
+  };
+
+  extractPreviewPayload(raw);
+  extractPreviewPayload(decodedOnce);
+
+  for (const value of [raw, decodedOnce]) {
+    try {
+      const parsed = new URL(value);
+      const wrapped = parsed.searchParams.get('url');
+      if (wrapped) {
+        push(wrapped);
+        push(safeDecodeURIComponent(wrapped));
+        extractPreviewPayload(wrapped);
+      }
+    } catch {
+      // ignore non-url variants
     }
-  } catch {
-    // ignore parse failures for legacy inspect links
   }
+
+  return candidates;
+}
+
+function parseFloatFromEncodedInspectLink(rawInspectLink = '') {
+  const candidates = collectEncodedInspectLinkCandidates(rawInspectLink);
+  if (candidates.length === 0) return null;
+
+  for (const inspectLink of candidates) {
+    try {
+      const decoded = decodeCs2InspectLink(inspectLink);
+      const values = [decoded?.paintwear, decoded?.floatvalue, decoded?.float];
+      for (const value of values) {
+        const num = Number(value);
+        if (Number.isFinite(num) && num >= 0 && num <= 1) return num;
+      }
+    } catch {
+      // ignore parse failures for legacy inspect links
+    }
+  }
+
   return null;
 }
 
