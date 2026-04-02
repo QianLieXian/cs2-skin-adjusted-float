@@ -27,6 +27,28 @@
     return null;
   }
 
+  function readSteamIdFromPage() {
+    const globalCandidates = [
+      window.g_steamID,
+      window.g_rgProfileData?.steamid,
+      window.g_rgProfileData?.steamID
+    ];
+    for (const candidate of globalCandidates) {
+      const value = String(candidate || '').trim();
+      if (/^\d{17}$/.test(value)) return value;
+    }
+
+    const html = document.documentElement?.innerHTML || '';
+    const match = html.match(/(?:g_steamID|steamid)["'\s:=]+(\d{17})/i);
+    return match?.[1] || null;
+  }
+
+  function collectSteamIdCandidates() {
+    const fromUrl = readSteamIdFromUrl();
+    const fromPage = readSteamIdFromPage();
+    return Array.from(new Set([fromPage, fromUrl].filter(Boolean)));
+  }
+
   function buildInventoryUrl(steamId, startAssetId) {
     const url = new URL(`https://steamcommunity.com/inventory/${steamId}/${APP_ID}/${CONTEXT_ID}`);
     url.searchParams.set('l', 'schinese');
@@ -50,6 +72,26 @@
       startAssetId = payload.last_assetid || null;
     }
     return merged;
+  }
+
+  async function fetchInventoryPagesWithFallback() {
+    const candidates = collectSteamIdCandidates();
+    if (!candidates.length) {
+      throw new Error('未识别到 SteamID，请在个人库存页执行导出');
+    }
+
+    let lastError = null;
+    for (const steamId of candidates) {
+      try {
+        const inventoryData = await fetchInventoryPages(steamId);
+        return { steamId, inventoryData };
+      } catch (error) {
+        lastError = error;
+        if (!/404/.test(String(error?.message || ''))) throw error;
+      }
+    }
+
+    throw lastError || new Error('库存接口异常: 404');
   }
 
   function readExterior(description) {
@@ -159,9 +201,7 @@
   }
 
   async function exportInventory() {
-    const steamId = readSteamIdFromUrl();
-    if (!steamId) throw new Error('当前页面 URL 不包含 SteamID，请在个人库存页执行导出');
-    const inventoryData = await fetchInventoryPages(steamId);
+    const { steamId, inventoryData } = await fetchInventoryPagesWithFallback();
     const payload = buildExportPayload(steamId, inventoryData);
     downloadAsJs(payload);
     return payload;
