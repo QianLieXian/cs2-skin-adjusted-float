@@ -191,17 +191,19 @@
     if (!link) return null;
     const normalized = link
       .replace(/&amp;/g, '&')
-      .replace(/%owner_steamid%/g, ownerSteamId)
-      .replace(/%assetid%/g, assetId)
+      .replace(/%owner_steamid%/gi, ownerSteamId)
+      .replace(/%assetid%/gi, assetId)
       .replace(/%d%/gi, inspectD)
-      .replace(/%D%/g, inspectD)
       .replace(/%propid:6%/gi, inspectD)
+      .replace(/%s%/gi, ownerSteamId)
+      .replace(/%a%/gi, assetId)
       .replace(/%25owner_steamid%25/gi, ownerSteamId)
       .replace(/%25assetid%25/gi, assetId)
       .replace(/%25d%25/gi, inspectD)
-      .replace(/%25D%25/g, inspectD)
-      .replace(/%25propid:6%25/gi, inspectD);
-    if (/%(?:owner_steamid|assetid|propid:6|d)%/i.test(normalized)) return null;
+      .replace(/%25propid:6%25/gi, inspectD)
+      .replace(/%25s%25/gi, ownerSteamId)
+      .replace(/%25a%25/gi, assetId);
+    if (/%(?:owner_steamid|assetid|propid:6|d|s|a|m|listingid)%/i.test(normalized)) return null;
     return normalized;
   }
 
@@ -221,7 +223,7 @@
       for (const action of group) {
         const link = String(action?.link || '');
         if (!link) continue;
-        const dMatch = link.match(/[?&]d=([^&]+)/i) || link.match(/(?:^|[\s%])D(\d{6,})/);
+        const dMatch = link.match(/[?&]d=([^&]+)/i) || link.match(/(?:^|[\s%])D([a-zA-Z0-9]{6,})/i);
         if (dMatch?.[1]) return dMatch[1];
       }
     }
@@ -238,7 +240,16 @@
       const inspectAction = group.find((action) => isInspectAction(action));
       if (!inspectAction) continue;
       const normalized = normalizeInspectLink(inspectAction.link, ownerSteamId, assetId, inspectD);
-      if (normalized) return normalized;
+      if (!normalized) continue;
+      const asmd = parseAsmdFromInspectLink(normalized);
+      if (asmd?.a && (asmd?.s || asmd?.m)) {
+        const prefix = 'steam://rungame/730/76561202255233023/+csgo_econ_action_preview%20';
+        const sid = asmd.s || asmd.m;
+        const mode = asmd.s ? 'S' : 'M';
+        const dPart = asmd.d ? `D${asmd.d}` : '';
+        return `${prefix}${mode}${sid}A${asmd.a}${dPart}`;
+      }
+      return normalized;
     }
     return null;
   }
@@ -304,12 +315,21 @@
     return null;
   }
 
+  function safeDecodeURIComponent(input) {
+    const text = String(input || '');
+    try {
+      return decodeURIComponent(text);
+    } catch (_) {
+      return text;
+    }
+  }
+
   function parseAsmdFromInspectLink(inspectLink) {
     const link = String(inspectLink || '');
     if (!link) return null;
-    const decoded = decodeURIComponent(link);
+    const decoded = safeDecodeURIComponent(link);
     const compact = decoded.replace(/\s+/g, '');
-    const match = compact.match(/(?:^|[^A-Z])([SM])(\d+)A(\d+)(?:D(\d+))?/i);
+    const match = compact.match(/(?:^|[^A-Z])([SM])(\d+)A(\d+)(?:D([A-Z0-9]+))?/i);
     if (!match) return null;
     const mode = String(match[1] || '').toUpperCase();
     return {
@@ -347,7 +367,7 @@
   function looksLikeUsableInspectLink(inspectLink) {
     const link = String(inspectLink || '').trim();
     if (!/csgo_econ_action_preview/i.test(link)) return false;
-    const compact = decodeURIComponent(link).replace(/\s+/g, '');
+    const compact = safeDecodeURIComponent(link).replace(/\s+/g, '');
     return /A\d+/i.test(compact) && /[SM]\d+/i.test(compact);
   }
 
