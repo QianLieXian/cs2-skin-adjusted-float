@@ -9,6 +9,7 @@
     "generate:data": "node ./scripts/generateCollectionData.mjs"
   },
   "dependencies": {
+    "@csfloat/cs2-inspect-serializer": "^1.1.6",
     "axios": "^1.8.2",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
