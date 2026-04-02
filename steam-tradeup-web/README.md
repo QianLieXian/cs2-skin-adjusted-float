@@ -10,8 +10,9 @@
 - 提供 Steam 登录与库存读取接口（需要配置 Steam API Key）。
 - 支持直接粘贴交易链接读取公开库存（无需 Steam 登录），并标记交易冷却/限制中的物品。
 - 前端支持直接填写 Steam Web API Key（会保存在浏览器 localStorage，并作为请求参数发送给当前后端）。
+- 前端支持直接填写 SteamDT API Key（会保存在浏览器 localStorage，并用于 inspect 精确磨损补全）。
 - 前端支持填写 `SteamID64 + Steam Web API Key` 后一键直连读取库存（无需 Steam 登录会话）。
-- float 展示策略：优先“精确值”（API 原始值或 inspect 查询值）；当 Inspect API 被上游限流阻断时，自动降级为“外观区间估算值”（并在返回 `note/inspectApiBlocked` 标注原因）。
+- float 展示策略：优先“精确值”（API 原始值或 inspect 查询值）；inspect 查询优先走 SteamDT，再回退 CSFloat；当 Inspect API 被上游限流阻断时，自动降级为“外观区间估算值”（并在返回 `note/inspectApiBlocked` 标注原因）。
 
 ## 快速启动
 

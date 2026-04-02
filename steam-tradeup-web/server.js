@@ -243,6 +243,8 @@ const {
   STEAM_WEB_API = 'https://api.steampowered.com',
   CSFLOAT_INSPECT_API = 'https://api.csgofloat.com',
   CSFLOAT_INSPECT_API_FALLBACKS = '',
+  STEAMDT_API_BASE = 'https://open.steamdt.com',
+  STEAMDT_API_KEY = '',
   PUBLIC_BASE_URL = ''
 } = process.env;
 const hasExplicitBaseUrl = Boolean(String(process.env.BASE_URL ?? '').trim());
@@ -372,6 +374,20 @@ function parseFloatFromInspectResponse(payload) {
     payload?.wear,
     payload?.floatvalue,
     payload?.float_value
+  ];
+  for (const value of candidates) {
+    const num = Number(value);
+    if (Number.isFinite(num) && num >= 0 && num <= 1) return num;
+  }
+  return null;
+}
+
+function parseFloatFromSteamDtResponse(payload) {
+  const candidates = [
+    payload?.data?.itemPreviewData?.paintwear,
+    payload?.data?.itemPreviewData?.floatWear,
+    payload?.data?.paintwear,
+    payload?.data?.floatWear
   ];
   for (const value of candidates) {
     const num = Number(value);
@@ -561,6 +577,26 @@ async function getInspectFloatByUrl(inspectLink) {
   return null;
 }
 
+async function getInspectFloatBySteamDt(inspectLink, steamDtApiKey = '') {
+  const key = String(steamDtApiKey ?? '').trim();
+  if (!key || !inspectLink) return null;
+  const endpoint = `${String(STEAMDT_API_BASE).replace(/\/+$/, '')}/open/cs2/v1/wear`;
+  try {
+    const response = await postWithDirectFallback(endpoint, { inspectUrl: inspectLink }, {
+      timeout: 6500,
+      headers: {
+        Authorization: `Bearer ${key}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    return parseFloatFromSteamDtResponse(response?.data);
+  } catch (error) {
+    const message = String(error?.response?.data?.errorMsg ?? error?.response?.data?.message ?? error?.message ?? '');
+    console.warn('[WARN] SteamDT inspect request failed', { message });
+    return null;
+  }
+}
+
 async function resolveFloatByInspectParams(params) {
   if (!params?.a || !params?.d) return null;
   if (inspectApiRuntime.blocked) return null;
@@ -608,7 +644,7 @@ function buildSkinDictionary() {
 
 const skinDictionary = buildSkinDictionary();
 
-async function resolveFloatFromInspectLink(item = {}) {
+async function resolveFloatFromInspectLink(item = {}, steamDtApiKey = '') {
   if (typeof item.floatValue === 'number') return item.floatValue;
   if (!item.inspectLink) return null;
   const inspectCandidates = buildInspectLinkCandidates(item.inspectLink);
@@ -628,6 +664,9 @@ async function resolveFloatFromInspectLink(item = {}) {
       const parsedByParams = await resolveFloatByInspectParams(inspectParams);
       if (typeof parsedByParams === 'number') return parsedByParams;
     }
+
+    const parsedBySteamDt = await getInspectFloatBySteamDt(inspectLink, steamDtApiKey);
+    if (typeof parsedBySteamDt === 'number') return parsedBySteamDt;
 
     const parsedByUrl = await getInspectFloatByUrl(inspectLink);
     if (typeof parsedByUrl === 'number') return parsedByUrl;
@@ -750,7 +789,7 @@ function estimateFloatFromExterior(exterior, minFloat, maxFloat) {
   return (lower + upper) / 2;
 }
 
-async function resolveMissingFloats(items = []) {
+async function resolveMissingFloats(items = [], steamDtApiKey = '') {
   await resolveMissingFloatsByBulkInspect(items);
   const inspectFloatCache = new Map();
   const queue = items
@@ -773,13 +812,13 @@ async function resolveMissingFloats(items = []) {
         }
         continue;
       }
-      const exactFloat = await resolveFloatFromInspectLink(current.item);
+      const exactFloat = await resolveFloatFromInspectLink(current.item, steamDtApiKey);
       inspectFloatCache.set(cacheKey, exactFloat);
       if (typeof exactFloat === 'number') {
         items[current.index] = {
           ...items[current.index],
           floatValue: exactFloat,
-          floatSource: 'csfloat_inspect'
+          floatSource: String(steamDtApiKey ?? '').trim() ? 'steamdt_inspect' : 'csfloat_inspect'
         };
       }
     }
@@ -815,18 +854,18 @@ function enrichInventoryItem(item = {}) {
   };
 }
 
-async function enrichInventory(items = []) {
+async function enrichInventory(items = [], steamDtApiKey = '') {
   const baseItems = items.map(enrichInventoryItem);
-  await resolveMissingFloats(baseItems);
+  await resolveMissingFloats(baseItems, steamDtApiKey);
   return baseItems;
 }
 
-async function withInventoryMeta(result = {}) {
-  const enrichedItems = await enrichInventory(result.items ?? []);
+async function withInventoryMeta(result = {}, steamDtApiKey = '') {
+  const enrichedItems = await enrichInventory(result.items ?? [], steamDtApiKey);
   const materialCount = enrichedItems.filter((it) => it.eligibleForTradeup).length;
   const missingFloatCount = enrichedItems.filter((it) => typeof it.floatValue !== 'number').length;
   const dictionaryMatchedCount = enrichedItems.filter((it) => it.collection && it.rarity).length;
-  const exactFloatCount = enrichedItems.filter((it) => ['api', 'csfloat_inspect'].includes(it.floatSource)).length;
+  const exactFloatCount = enrichedItems.filter((it) => ['api', 'csfloat_inspect', 'steamdt_inspect'].includes(it.floatSource)).length;
   const estimatedFloatCount = enrichedItems.filter((it) => it.floatSource === 'estimated_from_exterior').length;
   return {
     ...result,
@@ -840,17 +879,18 @@ async function withInventoryMeta(result = {}) {
   };
 }
 
-async function buildInventoryResponse(rawResult, note) {
+async function buildInventoryResponse(rawResult, note, steamDtApiKey = '') {
   const inspectNote = inspectApiRuntime.blocked
     ? ` Inspect API blocked: ${inspectApiRuntime.reason}. Float 缺失项已使用外观区间估算兜底。`
     : '';
   return await withInventoryMeta({
     ...rawResult,
     inspectApi: `${INSPECT_API_CANDIDATES[0] ?? CSFLOAT_INSPECT_API}/?url=<inspect_link>`,
+    inspectApiSteamDt: `${String(STEAMDT_API_BASE).replace(/\/+$/, '')}/open/cs2/v1/wear`,
     inspectApiCandidates: INSPECT_API_CANDIDATES,
     inspectApiBlocked: inspectApiRuntime.blocked,
     note: `${note ?? ''}${inspectNote}`.trim()
-  });
+  }, steamDtApiKey);
 }
 
 
@@ -1927,6 +1967,13 @@ function resolveSteamApiKey(req) {
   return String(key ?? '').trim();
 }
 
+function resolveSteamDtApiKey(req) {
+  const keyFromQuery = String(req?.query?.steamDtApiKey ?? '').trim();
+  const keyFromHeader = String(req?.headers?.['x-steamdt-api-key'] ?? '').trim();
+  const key = keyFromQuery || keyFromHeader || STEAMDT_API_KEY;
+  return String(key ?? '').trim();
+}
+
 app.get('/api/inventory', requireAuth, async (req, res) => {
   const errors = [];
   const pushError = (source, error) => {
@@ -1943,13 +1990,15 @@ app.get('/api/inventory', requireAuth, async (req, res) => {
   try {
     const communityResult = await fetchInventoryFromCommunity(req.user.steamId);
     const apiKey = resolveSteamApiKey(req);
+    const steamDtApiKey = resolveSteamDtApiKey(req);
     if (apiKey) {
       try {
         const econServiceResult = await fetchInventoryFromEconService(req.user.steamId, apiKey);
         if (econServiceResult.total > communityResult.total) {
           return res.json(await buildInventoryResponse(
             econServiceResult,
-            '库存使用 IEconService 结果（数量高于社区库存），通常可覆盖更多冷却/限制物品。'
+            '库存使用 IEconService 结果（数量高于社区库存），通常可覆盖更多冷却/限制物品。',
+            steamDtApiKey
           ));
         }
       } catch (econServiceCompareError) {
@@ -1958,18 +2007,21 @@ app.get('/api/inventory', requireAuth, async (req, res) => {
     }
     return res.json(await buildInventoryResponse(
       communityResult,
-      '库存优先来自 steamcommunity inventory 接口；官方 Web API 在 CS2 场景经常返回空结果。'
+      '库存优先来自 steamcommunity inventory 接口；官方 Web API 在 CS2 场景经常返回空结果。',
+      steamDtApiKey
     ));
   } catch (error) {
     pushError('community', error);
     const apiKey = resolveSteamApiKey(req);
+    const steamDtApiKey = resolveSteamDtApiKey(req);
     if (apiKey) {
       try {
         const econServiceResult = await fetchInventoryFromEconService(req.user.steamId, apiKey);
         if (econServiceResult.total > 0) {
           return res.json(await buildInventoryResponse(
             econServiceResult,
-            '主链路失败后，已回退到 IEconService/GetInventoryItemsWithDescriptions。'
+            '主链路失败后，已回退到 IEconService/GetInventoryItemsWithDescriptions。',
+            steamDtApiKey
           ));
         }
         pushError('econ_service_empty', new Error('IEconService returned 0 items.'));
@@ -1996,7 +2048,7 @@ app.get('/api/inventory', requireAuth, async (req, res) => {
             total: resultItems.length,
             cooldownCount: 0,
             items: resultItems
-          }, '回退到 Steam Web API（IEconItems_730）读取。若仍为 0，通常不是 key 问题而是该接口对 CS2 数据不完整。'));
+          }, '回退到 Steam Web API（IEconItems_730）读取。若仍为 0，通常不是 key 问题而是该接口对 CS2 数据不完整。', steamDtApiKey));
         }
         pushError('legacy_econitems_empty', new Error('IEconItems_730 returned 0 items.'));
       } catch (legacyError) {
@@ -2016,7 +2068,7 @@ app.get('/api/inventory', requireAuth, async (req, res) => {
       total: 0,
       cooldownCount: 0,
       items: []
-    }));
+    }, steamDtApiKey));
   }
 });
 
@@ -2024,6 +2076,7 @@ app.get('/api/inventory/by-api-key', async (req, res) => {
   try {
     const steamId = String(req.query.steamId ?? '').trim();
     const apiKey = resolveSteamApiKey(req);
+    const steamDtApiKey = resolveSteamDtApiKey(req);
     const fallbackErrors = [];
     const pushFallbackError = (source, error) => {
       fallbackErrors.push({
@@ -2041,7 +2094,7 @@ app.get('/api/inventory/by-api-key', async (req, res) => {
     try {
       const econServiceResult = await fetchInventoryFromEconService(steamId, apiKey);
       if (econServiceResult.total > 0) {
-        return res.json(await buildInventoryResponse(econServiceResult, '通过 Steam Web API Key 直接读取库存（无需 Steam 登录会话）。'));
+        return res.json(await buildInventoryResponse(econServiceResult, '通过 Steam Web API Key 直接读取库存（无需 Steam 登录会话）。', steamDtApiKey));
       }
       pushFallbackError('econ_service_empty', new Error('IEconService returned 0 items.'));
     } catch (error) {
@@ -2051,7 +2104,7 @@ app.get('/api/inventory/by-api-key', async (req, res) => {
     try {
       const communityResult = await fetchInventoryFromCommunity(steamId);
       if (communityResult.total > 0) {
-        return res.json(await buildInventoryResponse(communityResult, 'IEconService 返回空后，已回退到 steamcommunity inventory 公开库存接口。'));
+        return res.json(await buildInventoryResponse(communityResult, 'IEconService 返回空后，已回退到 steamcommunity inventory 公开库存接口。', steamDtApiKey));
       }
       pushFallbackError('community_empty', new Error('steamcommunity inventory returned 0 items.'));
     } catch (error) {
@@ -2077,7 +2130,7 @@ app.get('/api/inventory/by-api-key', async (req, res) => {
           total: resultItems.length,
           cooldownCount: 0,
           items: resultItems
-        }, 'IEconService 与社区库存都为空后，回退到 IEconItems_730 旧接口。'));
+        }, 'IEconService 与社区库存都为空后，回退到 IEconItems_730 旧接口。', steamDtApiKey));
       }
       pushFallbackError('legacy_econitems_empty', new Error('IEconItems_730 returned 0 items.'));
     } catch (error) {
@@ -2092,7 +2145,7 @@ app.get('/api/inventory/by-api-key', async (req, res) => {
       cooldownCount: 0,
       items: [],
       fallbackErrors
-    }));
+    }, steamDtApiKey));
   } catch (error) {
     const statusCode = Number(error?.response?.status ?? 0);
     const details = statusCode === 403
@@ -2105,7 +2158,7 @@ app.get('/api/inventory/by-api-key', async (req, res) => {
   }
 });
 
-async function fetchPublicInventoryByTradeUrl(tradeUrl) {
+async function fetchPublicInventoryByTradeUrl(tradeUrl, steamDtApiKey = '') {
   const parsed = parseTradeUrl(tradeUrl);
   if (!parsed) {
     const err = new Error('Invalid trade offer URL');
@@ -2178,13 +2231,14 @@ async function fetchPublicInventoryByTradeUrl(tradeUrl) {
     total: items.length,
     cooldownCount: items.filter((it) => it.cooldown).length,
     items
-  });
+  }, steamDtApiKey);
 }
 
 app.get('/api/inventory/public', async (req, res) => {
   try {
     const tradeUrl = String(req.query.tradeUrl ?? '');
     const apiKey = resolveSteamApiKey(req);
+    const steamDtApiKey = resolveSteamDtApiKey(req);
     if (!tradeUrl) {
       return res.status(400).json({ error: 'Missing tradeUrl query parameter' });
     }
@@ -2192,7 +2246,7 @@ app.get('/api/inventory/public', async (req, res) => {
     if (!parsed) {
       return res.status(400).json({ error: 'Invalid tradeUrl query parameter' });
     }
-    let result = await fetchPublicInventoryByTradeUrl(tradeUrl);
+    let result = await fetchPublicInventoryByTradeUrl(tradeUrl, steamDtApiKey);
     if (apiKey) {
       try {
         const econServiceResult = await fetchInventoryFromEconService(parsed.steamId, apiKey);
@@ -2203,7 +2257,7 @@ app.get('/api/inventory/public', async (req, res) => {
             steamId: parsed.steamId,
             token: parsed.token ?? null,
             note: '检测到 API Key 且 IEconService 数量更高，已自动切换到 API 结果以覆盖更多受限库存。'
-          });
+          }, steamDtApiKey);
         }
       } catch (compareError) {
         console.warn('[WARN] /api/inventory/public compare by apiKey failed', {

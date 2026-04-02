@@ -19,6 +19,9 @@
     'https://api.csgofloat.com',
     'https://api.csfloat.com'
   ];
+  const STEAMDT_API_BASE = 'https://open.steamdt.com';
+  const EXPORTER_STEAM_API_KEY_STORAGE_KEY = 'cs2_exporter_steam_api_key';
+  const EXPORTER_STEAMDT_KEY_STORAGE_KEY = 'cs2_exporter_steamdt_api_key';
 
   function readProfileIdFromUrl() {
     const parts = window.location.pathname.split('/').filter(Boolean);
@@ -258,6 +261,20 @@
     return null;
   }
 
+  function parseFloatFromSteamDtResponse(payload) {
+    const candidates = [
+      payload?.data?.itemPreviewData?.paintwear,
+      payload?.data?.itemPreviewData?.floatWear,
+      payload?.data?.paintwear,
+      payload?.data?.floatWear
+    ];
+    for (const raw of candidates) {
+      const parsed = normalizeFloatValue(raw);
+      if (typeof parsed === 'number') return parsed;
+    }
+    return null;
+  }
+
   function readFloatValue(description) {
     const candidates = [
       description?.floatvalue,
@@ -273,8 +290,30 @@
     return { floatValue: null, floatValue16: null, floatSource: 'missing' };
   }
 
-  async function fetchInspectFloat(inspectLink) {
+  async function fetchInspectFloat(inspectLink, steamDtApiKey = '') {
     if (!inspectLink) return null;
+    const steamDtKey = String(steamDtApiKey || '').trim();
+
+    if (steamDtKey) {
+      try {
+        const response = await fetch(`${STEAMDT_API_BASE}/open/cs2/v1/wear`, {
+          method: 'POST',
+          credentials: 'omit',
+          headers: {
+            Authorization: `Bearer ${steamDtKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ inspectUrl: inspectLink })
+        });
+        if (response.ok) {
+          const payload = await response.json();
+          const parsed = parseFloatFromSteamDtResponse(payload);
+          if (typeof parsed === 'number') return parsed;
+        }
+      } catch (_) {
+        // ignore and fallback to CSFloat candidates
+      }
+    }
 
     for (const baseUrl of INSPECT_API_CANDIDATES) {
       try {
@@ -313,7 +352,7 @@
         const currentIndex = cursor;
         cursor += 1;
         const link = links[currentIndex];
-        const floatValue = await fetchInspectFloat(link);
+        const floatValue = await fetchInspectFloat(link, items[0]?.steamDtApiKey);
         if (typeof floatValue !== 'number') continue;
         const floatValue16 = formatFloat16(floatValue);
         for (const itemIndex of groupedByInspect.get(link) || []) {
@@ -362,14 +401,25 @@
     };
   }
 
-  async function buildExportPayload(steamId, inventoryData) {
+  function resolveExporterKeys(options = {}) {
+    const fromOptionsSteamApiKey = String(options?.steamApiKey || '').trim();
+    const fromOptionsSteamDtApiKey = String(options?.steamDtApiKey || '').trim();
+    const steamApiKey = fromOptionsSteamApiKey || String(localStorage.getItem(EXPORTER_STEAM_API_KEY_STORAGE_KEY) || '').trim();
+    const steamDtApiKey = fromOptionsSteamDtApiKey || String(localStorage.getItem(EXPORTER_STEAMDT_KEY_STORAGE_KEY) || '').trim();
+    if (fromOptionsSteamApiKey) localStorage.setItem(EXPORTER_STEAM_API_KEY_STORAGE_KEY, fromOptionsSteamApiKey);
+    if (fromOptionsSteamDtApiKey) localStorage.setItem(EXPORTER_STEAMDT_KEY_STORAGE_KEY, fromOptionsSteamDtApiKey);
+    return { steamApiKey, steamDtApiKey };
+  }
+
+  async function buildExportPayload(steamId, inventoryData, options = {}) {
+    const { steamApiKey, steamDtApiKey } = resolveExporterKeys(options);
     const descMap = new Map(inventoryData.descriptions.map((desc) => [`${desc.classid}_${desc.instanceid}`, desc]));
     const items = inventoryData.assets
       .filter((asset) => Number(asset?.appid) === APP_ID)
       .map((asset) => {
         const key = `${asset.classid}_${asset.instanceid}`;
         const desc = descMap.get(key);
-        return desc ? normalizeItem(asset, desc, steamId) : null;
+        return desc ? { ...normalizeItem(asset, desc, steamId), steamDtApiKey } : null;
       })
       .filter(Boolean);
 
@@ -383,6 +433,10 @@
       source: 'steam_inventory_exporter',
       createdAt: new Date().toISOString(),
       steamId,
+      exporterSettings: {
+        steamApiKeyConfigured: Boolean(steamApiKey),
+        steamDtApiKeyConfigured: Boolean(steamDtApiKey)
+      },
       total: items.length,
       cooldownCount: items.filter((it) => it.cooldown).length,
       exactFloatCount,
@@ -407,9 +461,10 @@
     setTimeout(() => URL.revokeObjectURL(href), 2000);
   }
 
-  async function exportInventory() {
+  async function exportInventory(options = {}) {
     const { steamId, inventoryData } = await fetchInventoryPagesWithFallback();
-    const payload = await buildExportPayload(steamId, inventoryData);
+    const payload = await buildExportPayload(steamId, inventoryData, options);
+    payload.items = payload.items.map(({ steamDtApiKey, ...item }) => item);
     downloadAsJs(payload);
     return payload;
   }
