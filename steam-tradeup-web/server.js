@@ -471,8 +471,30 @@ function resolveInspectApiCandidates() {
 }
 
 const INSPECT_API_CANDIDATES = resolveInspectApiCandidates();
+const inspectApiRuntime = {
+  blocked: false,
+  reason: ''
+};
+
+function detectInspectApiBlocked(error) {
+  const status = Number(error?.response?.status ?? 0);
+  const data = error?.response?.data;
+  const message = String(data?.error ?? data?.message ?? error?.message ?? '').toLowerCase();
+  const code = Number(data?.code ?? 0);
+  return (status === 429 && (code === 16 || message.includes('temporarily not allowed'))) || message.includes('rate limit');
+}
+
+function markInspectApiBlocked(error) {
+  if (inspectApiRuntime.blocked) return;
+  inspectApiRuntime.blocked = true;
+  inspectApiRuntime.reason = String(error?.response?.data?.error ?? error?.message ?? 'Inspect API temporarily blocked');
+  console.warn('[WARN] Inspect API appears temporarily blocked, will skip repetitive remote inspect requests for this process.', {
+    reason: inspectApiRuntime.reason
+  });
+}
 
 async function getInspectFloatByUrl(inspectLink) {
+  if (inspectApiRuntime.blocked) return null;
   for (const baseUrl of INSPECT_API_CANDIDATES) {
     try {
       const response = await getWithDirectFallback(baseUrl, {
@@ -481,7 +503,11 @@ async function getInspectFloatByUrl(inspectLink) {
       });
       const parsed = parseFloatFromInspectResponse(response?.data);
       if (typeof parsed === 'number') return parsed;
-    } catch {
+    } catch (error) {
+      if (detectInspectApiBlocked(error)) {
+        markInspectApiBlocked(error);
+        return null;
+      }
       // try next candidate
     }
   }
@@ -490,6 +516,7 @@ async function getInspectFloatByUrl(inspectLink) {
 
 async function resolveFloatByInspectParams(params) {
   if (!params?.a || !params?.d) return null;
+  if (inspectApiRuntime.blocked) return null;
   for (const baseUrl of INSPECT_API_CANDIDATES) {
     try {
       const response = await getWithDirectFallback(baseUrl, {
@@ -498,7 +525,11 @@ async function resolveFloatByInspectParams(params) {
       });
       const parsed = parseFloatFromInspectResponse(response?.data);
       if (typeof parsed === 'number') return parsed;
-    } catch {
+    } catch (error) {
+      if (detectInspectApiBlocked(error)) {
+        markInspectApiBlocked(error);
+        return null;
+      }
       // try next candidate
     }
   }
@@ -558,6 +589,7 @@ async function resolveFloatFromInspectLink(item = {}) {
 }
 
 async function resolveMissingFloatsByBulkInspect(items = []) {
+  if (inspectApiRuntime.blocked) return items;
   const pending = items
     .map((item, index) => ({ item, index }))
     .filter(({ item }) => typeof item.floatValue !== 'number' && item.inspectLink);
@@ -598,7 +630,11 @@ async function resolveMissingFloatsByBulkInspect(items = []) {
           }
         }
         break;
-      } catch {
+      } catch (error) {
+        if (detectInspectApiBlocked(error)) {
+          markInspectApiBlocked(error);
+          return items;
+        }
         // try next candidate
       }
     }
@@ -647,6 +683,26 @@ function parseBulkInspectFloat(payload) {
   return resolved;
 }
 
+const exteriorFloatRanges = {
+  'Factory New': [0.0, 0.07],
+  'Minimal Wear': [0.07, 0.15],
+  'Field-Tested': [0.15, 0.38],
+  'Well-Worn': [0.38, 0.45],
+  'Battle-Scarred': [0.45, 1.0]
+};
+
+function estimateFloatFromExterior(exterior, minFloat, maxFloat) {
+  const range = exteriorFloatRanges[String(exterior ?? '').trim()];
+  if (!range) return null;
+  const min = Number(minFloat);
+  const max = Number(maxFloat);
+  if (!Number.isFinite(min) || !Number.isFinite(max) || max <= min) return null;
+  const lower = Math.max(min, range[0]);
+  const upper = Math.min(max, range[1]);
+  if (upper < lower) return null;
+  return (lower + upper) / 2;
+}
+
 async function resolveMissingFloats(items = []) {
   await resolveMissingFloatsByBulkInspect(items);
   const inspectFloatCache = new Map();
@@ -692,14 +748,18 @@ function enrichInventoryItem(item = {}) {
   const isSouvenir = /^Souvenir\s+/i.test(originalName);
   const isStatTrak = /^StatTrak™\s*/i.test(originalName);
   const hasExactFloat = typeof item.floatValue === 'number';
-  const floatValue = hasExactFloat ? item.floatValue : null;
-  const floatSource = hasExactFloat ? 'api' : 'missing';
+  const estimatedFloat = !hasExactFloat
+    ? estimateFloatFromExterior(item.exterior, skinMeta?.minFloat ?? 0, skinMeta?.maxFloat ?? 1)
+    : null;
+  const floatValue = hasExactFloat ? item.floatValue : estimatedFloat;
+  const floatSource = hasExactFloat ? 'api' : typeof estimatedFloat === 'number' ? 'estimated_from_exterior' : 'missing';
   return {
     ...item,
     marketHashName: normalizedName || originalName,
     originalMarketHashName: originalName || normalizedName,
     floatValue,
     floatSource,
+    exterior: item.exterior ?? null,
     isSouvenir,
     isStatTrak,
     collection: skinMeta?.collections?.[0] ?? null,
@@ -734,11 +794,15 @@ async function withInventoryMeta(result = {}) {
 }
 
 async function buildInventoryResponse(rawResult, note) {
+  const inspectNote = inspectApiRuntime.blocked
+    ? ` Inspect API blocked: ${inspectApiRuntime.reason}. Float 缺失项已使用外观区间估算兜底。`
+    : '';
   return await withInventoryMeta({
     ...rawResult,
     inspectApi: `${INSPECT_API_CANDIDATES[0] ?? CSFLOAT_INSPECT_API}/?url=<inspect_link>`,
     inspectApiCandidates: INSPECT_API_CANDIDATES,
-    note
+    inspectApiBlocked: inspectApiRuntime.blocked,
+    note: `${note ?? ''}${inspectNote}`.trim()
   });
 }
 
@@ -1548,8 +1612,20 @@ function normalizeInventory(items = []) {
     tradable: it.tradable,
     cooldown: it.cooldown,
     cooldownText: it.cooldownText,
+    exterior: it.exterior ?? null,
     floatValue: typeof it.floatValue === 'number' ? it.floatValue : null
   }));
+}
+
+function extractExterior(desc = {}) {
+  const tags = Array.isArray(desc?.tags) ? desc.tags : [];
+  for (const tag of tags) {
+    const category = String(tag?.category ?? tag?.category_name ?? '').toLowerCase();
+    const name = String(tag?.localized_tag_name ?? tag?.name ?? '').trim();
+    if ((category === 'exterior' || category.includes('wear')) && name) return name;
+    if (name in exteriorFloatRanges) return name;
+  }
+  return null;
 }
 
 function normalizeInspectLink(rawLink = '', steamId = '', assetId = '') {
@@ -1638,6 +1714,7 @@ function parseAssetDescriptionInventoryPayload(payload, steamId) {
       {};
     const inspectLink = pickInspectLink(desc, steamId, asset.assetid ?? asset.id ?? '');
     const cooldownText = extractCooldownText([...(desc.owner_descriptions ?? []), ...(desc.descriptions ?? [])]);
+    const exterior = extractExterior(desc);
     const tradable = Number(desc.tradable ?? 1) === 1;
     const permanentUntradable =
       (desc.tags ?? []).some((tag) => String(tag?.internal_name ?? '').toLowerCase() === 'not_tradable') ||
@@ -1650,6 +1727,7 @@ function parseAssetDescriptionInventoryPayload(payload, steamId) {
       tradable,
       cooldown: (!tradable && !permanentUntradable) || cooldownText.length > 0,
       cooldownText,
+      exterior,
       floatValue: null
     };
   });
@@ -1669,6 +1747,7 @@ function parseLegacyCommunityInventoryPayload(payload, steamId) {
     const desc = rgDescriptions[key] ?? {};
     const inspectLink = pickInspectLink(desc, steamId, asset.id ?? asset.assetid ?? '');
     const cooldownText = extractCooldownText([...(desc.owner_descriptions ?? []), ...(desc.descriptions ?? [])]);
+    const exterior = extractExterior(desc);
     const tradable = Number(desc.tradable ?? 1) === 1;
     const permanentUntradable =
       (desc.tags ?? []).some((tag) => String(tag?.internal_name ?? '').toLowerCase() === 'not_tradable') ||
@@ -1681,6 +1760,7 @@ function parseLegacyCommunityInventoryPayload(payload, steamId) {
       tradable,
       cooldown: (!tradable && !permanentUntradable) || cooldownText.length > 0,
       cooldownText,
+      exterior,
       floatValue: null
     };
   });
