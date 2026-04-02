@@ -1528,10 +1528,18 @@ function normalizeInspectLink(rawLink = '', steamId = '', assetId = '') {
     .replace(/&amp;/g, '&')
     .trim();
   if (!decoded) return '';
-  const cleanedPercent = decoded.replace(/%(?![0-9a-fA-F]{2})/g, '%25');
-  return cleanedPercent
-    .replace(/%owner_steamid%/gi, steamId)
-    .replace(/%assetid%/gi, assetId);
+
+  const owner = String(steamId ?? '').trim();
+  const asset = String(assetId ?? '').trim();
+
+  // 先替换 Steam 占位符，再做非法百分号兜底修复。
+  // 如果先修复 `%`，会把 `%owner_steamid%` / `%assetid%` 变成 `%25...%25`，
+  // 导致占位符替换失效，最终 inspect 链接不可用（float 全缺失）。
+  const withPlaceholdersResolved = decoded
+    .replace(/%(?:25)?owner_steamid%(?:25)?/gi, owner)
+    .replace(/%(?:25)?assetid%(?:25)?/gi, asset);
+
+  return withPlaceholdersResolved.replace(/%(?![0-9a-fA-F]{2})/g, '%25');
 }
 
 function pickInspectLink(desc = {}, steamId = '', assetId = '') {

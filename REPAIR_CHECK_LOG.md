@@ -1,5 +1,30 @@
 # 修复检查日志（2026-04-01）
 
+## 2026-04-02（再修：inspect 占位符被错误编码，导致 float 全缺失）
+
+### 问题现象
+- 你反馈统计为：`总数 58 / 精确 float 0 / float 缺失 58`，属于“全量缺失”。
+- 这类现象通常不是单条物品异常，而是 inspect 链路在源头统一失效。
+
+### 根因判断
+1. **inspect 链接归一化顺序错误**
+   - `normalizeInspectLink` 里先执行了“非法 `%` 编码修复”，再替换 `%owner_steamid%`、`%assetid%` 占位符。
+   - 结果占位符被提前改写为 `%25owner_steamid%25` / `%25assetid%25`，后续替换失败，最终请求 CSFloat 的 inspect 链接是坏的。
+2. **全量影响**
+   - 几乎所有需要 inspect 补全 float 的条目都会命中该逻辑，因此出现 `exactFloatCount = 0`、`missingFloatCount = total` 的“全缺失”。
+
+### 本轮修复
+1. **调整 `normalizeInspectLink` 处理顺序**
+   - 先替换占位符，再做非法 `%` 修复，避免占位符被污染。
+2. **兼容历史污染形态**
+   - 额外支持 `%25owner_steamid%25` / `%25assetid%25` 的替换，兼容部分已被错误编码的输入。
+3. **保留 URI 防护能力**
+   - 占位符替换后仍执行非法 `%` 兜底修复，不回退到会触发 `URI malformed` 的旧风险状态。
+
+### 结果
+- inspect 链接恢复可用，CSFloat 查询可重新命中，`exactFloatCount` 应从 0 恢复到正常区间。
+- 同时保留对非标准编码链接的容错，不会因单条脏数据拖垮整批库存流程。
+
 ## 2026-04-01（再修：float 全缺失，CSFloat 域名切换导致请求全失败）
 
 ### 问题现象
