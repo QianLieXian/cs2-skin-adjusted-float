@@ -533,22 +533,27 @@ const skinDictionary = buildSkinDictionary();
 async function resolveFloatFromInspectLink(item = {}) {
   if (typeof item.floatValue === 'number') return item.floatValue;
   if (!item.inspectLink) return null;
-  const decodedFromInspectLink = parseFloatFromEncodedInspectLink(item.inspectLink);
-  if (typeof decodedFromInspectLink === 'number') return decodedFromInspectLink;
-  let inspectParams = null;
-  try {
-    inspectParams = parseInspectLinkParams(item.inspectLink);
-  } catch {
-    inspectParams = null;
+  const inspectCandidates = buildInspectLinkCandidates(item.inspectLink);
+  if (inspectCandidates.length === 0) return null;
+
+  for (const inspectLink of inspectCandidates) {
+    const decodedFromInspectLink = parseFloatFromEncodedInspectLink(inspectLink);
+    if (typeof decodedFromInspectLink === 'number') return decodedFromInspectLink;
+
+    let inspectParams = null;
+    try {
+      inspectParams = parseInspectLinkParams(inspectLink);
+    } catch {
+      inspectParams = null;
+    }
+    if (inspectParams) {
+      const parsedByParams = await resolveFloatByInspectParams(inspectParams);
+      if (typeof parsedByParams === 'number') return parsedByParams;
+    }
+
+    const parsedByUrl = await getInspectFloatByUrl(inspectLink);
+    if (typeof parsedByUrl === 'number') return parsedByUrl;
   }
-  if (inspectParams) {
-    const parsedByParams = await resolveFloatByInspectParams(inspectParams);
-    if (typeof parsedByParams === 'number') return parsedByParams;
-  }
-  const parsedByUrl = await getInspectFloatByUrl(item.inspectLink);
-  if (typeof parsedByUrl === 'number') return parsedByUrl;
-  const decodedFallback = parseFloatFromEncodedInspectLink(item.inspectLink);
-  if (typeof decodedFallback === 'number') return decodedFallback;
   return null;
 }
 
@@ -1563,7 +1568,25 @@ function normalizeInspectLink(rawLink = '', steamId = '', assetId = '') {
     .replace(/%(?:25)?owner_steamid%(?:25)?/gi, owner)
     .replace(/%(?:25)?assetid%(?:25)?/gi, asset);
 
-  return withPlaceholdersResolved.replace(/%(?![0-9a-fA-F]{2})/g, '%25');
+  // 不在入口处全局转义 `%`，避免污染 CS2 新版自编码 inspect 链接。
+  return withPlaceholdersResolved;
+}
+
+function buildInspectLinkCandidates(rawInspectLink = '') {
+  const raw = String(rawInspectLink ?? '').trim();
+  if (!raw) return [];
+  const candidates = [];
+  const push = (value) => {
+    const normalized = String(value ?? '').trim();
+    if (!normalized || candidates.includes(normalized)) return;
+    candidates.push(normalized);
+  };
+
+  push(raw);
+  push(safeDecodeURIComponent(raw));
+  // 兼容历史脏数据：保留“非法 % 修复版”作为兜底候选，而非覆盖原始 inspect link。
+  push(raw.replace(/%(?![0-9a-fA-F]{2})/g, '%25'));
+  return candidates;
 }
 
 function pickInspectLink(desc = {}, steamId = '', assetId = '') {
