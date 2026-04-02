@@ -183,15 +183,37 @@
     return exteriorTag?.name || null;
   }
 
-  function readInspectLink(description, ownerSteamId, assetId) {
-    const actions = Array.isArray(description?.actions) ? description.actions : [];
-    const inspectAction = actions.find((action) => /Inspect in Game/i.test(action?.name || ''));
-    const rawLink = String(inspectAction?.link || '');
-    if (!rawLink) return null;
-    return rawLink
+  function normalizeInspectLink(rawLink, ownerSteamId, assetId) {
+    const link = String(rawLink || '').trim();
+    if (!link) return null;
+    return link
+      .replace(/&amp;/g, '&')
       .replace(/%owner_steamid%/g, ownerSteamId)
       .replace(/%assetid%/g, assetId)
-      .replace(/&amp;/g, '&');
+      .replace(/%25owner_steamid%25/gi, ownerSteamId)
+      .replace(/%25assetid%25/gi, assetId);
+  }
+
+  function isInspectAction(action) {
+    const name = String(action?.name || '');
+    const link = String(action?.link || '');
+    return (
+      /Inspect in Game|在游戏中检视/i.test(name) ||
+      /csgo_econ_action_preview/i.test(link) ||
+      /steam:\/\/rungame\/730/i.test(link)
+    );
+  }
+
+  function readInspectLink(description, ownerSteamId, assetId) {
+    const actionGroups = [description?.owner_actions, description?.actions, description?.market_actions];
+    for (const group of actionGroups) {
+      if (!Array.isArray(group)) continue;
+      const inspectAction = group.find((action) => isInspectAction(action));
+      if (!inspectAction) continue;
+      const normalized = normalizeInspectLink(inspectAction.link, ownerSteamId, assetId);
+      if (normalized) return normalized;
+    }
+    return null;
   }
 
   function parseCooldown(description) {

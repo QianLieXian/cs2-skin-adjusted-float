@@ -1,5 +1,34 @@
 # 修复检查日志（2026-04-01）
 
+## 2026-04-02（再修：导出端 inspectLink 漏抓导致 float 全缺失，补齐 16 位精确磨损链路）
+
+### 问题现象
+- 你提供的导出样本显示：`missingFloatCount = total`，且条目 `inspectLink = null`，导致后续无法调用 inspect 接口补全磨损。
+- 虽然前端显示支持 16 位小数，但在 `floatValue` 本身拿不到时，展示只能是 `null`。
+
+### 根因判断
+1. **导出器 inspect 链接提取范围过窄**
+   - 仅从 `description.actions` 且只匹配英文 `Inspect in Game`。
+   - Steam 库存在不同返回形态（`owner_actions / market_actions`、中文动作名等），因此大量条目漏抓 inspectLink。
+2. **占位符兼容不足**
+   - 历史上可能出现 `%25owner_steamid%25 / %25assetid%25` 形态，未做替换会让 inspect 链接无效。
+
+### 本轮修复
+1. **inspectLink 提取升级为多动作组**
+   - 导出端（核心/油猴/扩展）统一改为按顺序扫描：`owner_actions -> actions -> market_actions`。
+2. **inspect 动作识别增强**
+   - 同时支持：
+     - 英文/中文动作名（`Inspect in Game` / `在游戏中检视`）
+     - `csgo_econ_action_preview` 链接特征
+     - `steam://rungame/730` 协议特征
+3. **链接归一化补强**
+   - 新增 `normalizeInspectLink`，统一处理 `&amp;` 与 `%owner_steamid% / %assetid%`，并兼容 `%25...%25` 占位符。
+
+### 结果
+- 导出文件中的 `inspectLink` 命中率显著提升，不再因“链接为空”导致整批 `float = null`。
+- 当 inspect API 返回磨损后，`floatValue16` 将稳定按 16 位小数输出（例如 `0.xxxxxxxxxxxxxxxx`），与 Buff/悠悠的超长磨损展示一致。
+
+
 ## 2026-04-02（新增：库存离线导出链路，补充 7 天冷却识别与前端本地导入）
 
 ### 需求背景
