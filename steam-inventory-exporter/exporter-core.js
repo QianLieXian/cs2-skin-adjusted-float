@@ -17,12 +17,16 @@
 
   const EXTERIOR_TAGS = new Set(Object.keys(EXTERIOR_MIDPOINT));
 
-  function readSteamIdFromUrl() {
+  function readProfileIdFromUrl() {
     const parts = window.location.pathname.split('/').filter(Boolean);
     const profilesIndex = parts.indexOf('profiles');
     const idIndex = parts.indexOf('id');
-    if (profilesIndex !== -1 && parts[profilesIndex + 1]) return parts[profilesIndex + 1];
-    if (idIndex !== -1 && parts[idIndex + 1]) return parts[idIndex + 1];
+    if (profilesIndex !== -1 && parts[profilesIndex + 1]) {
+      return { type: 'steamid64', value: parts[profilesIndex + 1] };
+    }
+    if (idIndex !== -1 && parts[idIndex + 1]) {
+      return { type: 'vanity', value: parts[idIndex + 1] };
+    }
     return null;
   }
 
@@ -42,10 +46,31 @@
     return match?.[1] || null;
   }
 
-  function collectSteamIdCandidates() {
-    const fromUrl = readSteamIdFromUrl();
+  async function resolveVanityToSteamId(vanityId) {
+    try {
+      const response = await fetch(`https://steamcommunity.com/id/${encodeURIComponent(vanityId)}/?xml=1`, {
+        credentials: 'include'
+      });
+      if (!response.ok) return null;
+      const text = await response.text();
+      const match = text.match(/<steamID64>(\d{17})<\/steamID64>/i);
+      return match?.[1] || null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  async function collectSteamIdCandidates() {
+    const fromUrl = readProfileIdFromUrl();
     const fromPage = readSteamIdFromPage();
-    return Array.from(new Set([fromPage, fromUrl].filter(Boolean)));
+    const candidates = [fromPage];
+    if (fromUrl?.type === 'steamid64') {
+      candidates.push(fromUrl.value);
+    } else if (fromUrl?.type === 'vanity') {
+      const resolved = await resolveVanityToSteamId(fromUrl.value);
+      if (resolved) candidates.push(resolved);
+    }
+    return Array.from(new Set(candidates.filter(Boolean)));
   }
 
   function buildInventoryUrl(steamId, startAssetId) {
@@ -75,7 +100,7 @@
   }
 
   async function fetchInventoryPagesWithFallback() {
-    const candidates = collectSteamIdCandidates();
+    const candidates = await collectSteamIdCandidates();
     if (!candidates.length) {
       throw new Error('未识别到 SteamID，请在个人库存页执行导出');
     }
@@ -87,11 +112,11 @@
         return { steamId, inventoryData };
       } catch (error) {
         lastError = error;
-        if (!/404/.test(String(error?.message || ''))) throw error;
+        if (!/(400|404)/.test(String(error?.message || ''))) throw error;
       }
     }
 
-    throw lastError || new Error('库存接口异常: 404');
+    throw lastError || new Error('库存接口异常: 400/404');
   }
 
   function readExterior(description) {
