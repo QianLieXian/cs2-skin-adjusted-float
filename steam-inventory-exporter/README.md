@@ -15,6 +15,7 @@
 - float：
   - 优先使用库存响应里已有的 float（`inventory_api`）；
   - 若缺失，则优先用 `inspectLink` 请求 SteamDT 接口补全（`steamdt_inspect`）；
+  - 当 `inspectLink` 不完整或缺失 `D` 参数时，自动尝试 SteamDT 的 ASMD 接口（`steamdt_asmd`）；
   - SteamDT 未配置或失败时，自动回退请求 CSFloat 接口补全（`csfloat_inspect`）；
   - 仍失败则标记为 `missing`（不再做任何估算）。
 

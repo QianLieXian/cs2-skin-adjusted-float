@@ -304,6 +304,37 @@
     return null;
   }
 
+  function parseAsmdFromInspectLink(inspectLink) {
+    const link = String(inspectLink || '');
+    if (!link) return null;
+    const decoded = decodeURIComponent(link);
+    const compact = decoded.replace(/\s+/g, '');
+    const match = compact.match(/(?:^|[^A-Z])([SM])(\d+)A(\d+)(?:D(\d+))?/i);
+    if (!match) return null;
+    const mode = String(match[1] || '').toUpperCase();
+    return {
+      s: mode === 'S' ? match[2] : null,
+      m: mode === 'M' ? match[2] : null,
+      a: match[3] || null,
+      d: match[4] || null
+    };
+  }
+
+  function buildAsmdFromItem(item) {
+    const fromInspect = parseAsmdFromInspectLink(item?.inspectLink);
+    const steamId = String(fromInspect?.s || item?.steamId || '').trim();
+    const marketId = String(fromInspect?.m || '').trim();
+    const assetId = String(fromInspect?.a || item?.id || '').trim();
+    const d = String(fromInspect?.d || '').trim();
+    if (!assetId || (!steamId && !marketId)) return null;
+    return {
+      s: steamId || null,
+      m: marketId || null,
+      a: assetId,
+      d: d || null
+    };
+  }
+
   function readFloatValue(description) {
     const candidates = [description?.floatvalue, description?.float_value];
     for (const raw of candidates) {
@@ -313,11 +344,19 @@
     return { floatValue: null, floatValue16: null, floatSource: 'missing' };
   }
 
-  async function fetchInspectFloat(inspectLink, steamDtApiKey = '') {
-    if (!inspectLink) return null;
-    const steamDtKey = String(steamDtApiKey || '').trim();
+  function looksLikeUsableInspectLink(inspectLink) {
+    const link = String(inspectLink || '').trim();
+    if (!/csgo_econ_action_preview/i.test(link)) return false;
+    const compact = decodeURIComponent(link).replace(/\s+/g, '');
+    return /A\d+/i.test(compact) && /[SM]\d+/i.test(compact);
+  }
 
-    if (steamDtKey) {
+  async function fetchInspectFloat(item, steamDtApiKey = '') {
+    const steamDtKey = String(steamDtApiKey || '').trim();
+    const inspectLink = String(item?.inspectLink || '').trim();
+    const asmd = buildAsmdFromItem(item);
+
+    if (steamDtKey && inspectLink && looksLikeUsableInspectLink(inspectLink)) {
       try {
         const response = await fetch(`${STEAMDT_API_BASE}/open/cs2/v1/wear`, {
           method: 'POST',
@@ -338,17 +377,45 @@
       }
     }
 
-    for (const baseUrl of INSPECT_API_CANDIDATES) {
+    if (steamDtKey && asmd) {
       try {
-        const url = new URL(baseUrl);
-        url.searchParams.set('url', inspectLink);
-        const response = await fetch(url.toString(), { credentials: 'omit' });
-        if (!response.ok) continue;
-        const payload = await response.json();
-        const parsed = parseFloatFromInspectResponse(payload);
-        if (typeof parsed === 'number') return { value: parsed, source: 'csfloat_inspect' };
+        const response = await fetch(`${STEAMDT_API_BASE}/open/cs2/v2/wear`, {
+          method: 'POST',
+          credentials: 'omit',
+          headers: {
+            Authorization: `Bearer ${steamDtKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            s: asmd.s || '0',
+            m: asmd.m || '0',
+            a: asmd.a,
+            d: asmd.d || ''
+          })
+        });
+        if (response.ok) {
+          const payload = await response.json();
+          const parsed = parseFloatFromSteamDtResponse(payload);
+          if (typeof parsed === 'number') return { value: parsed, source: 'steamdt_asmd' };
+        }
       } catch (_) {
-        // continue to next inspect api candidate
+        // ignore and fallback to CSFloat candidates
+      }
+    }
+
+    if (inspectLink && looksLikeUsableInspectLink(inspectLink)) {
+      for (const baseUrl of INSPECT_API_CANDIDATES) {
+        try {
+          const url = new URL(baseUrl);
+          url.searchParams.set('url', inspectLink);
+          const response = await fetch(url.toString(), { credentials: 'omit' });
+          if (!response.ok) continue;
+          const payload = await response.json();
+          const parsed = parseFloatFromInspectResponse(payload);
+          if (typeof parsed === 'number') return { value: parsed, source: 'csfloat_inspect' };
+        } catch (_) {
+          // continue to next inspect api candidate
+        }
       }
     }
 
@@ -359,8 +426,7 @@
     const groupedByInspect = new Map();
     items.forEach((item, index) => {
       if (typeof item.floatValue === 'number') return;
-      if (!item.inspectLink) return;
-      const key = String(item.inspectLink);
+      const key = String(item.inspectLink || `${item.steamId || ''}:${item.id || ''}`);
       const indexes = groupedByInspect.get(key) || [];
       indexes.push(index);
       groupedByInspect.set(key, indexes);
@@ -375,7 +441,9 @@
         const currentIndex = cursor;
         cursor += 1;
         const link = links[currentIndex];
-        const floatResult = await fetchInspectFloat(link, items[0]?.steamDtApiKey);
+        const sampleIndex = (groupedByInspect.get(link) || [])[0];
+        const sampleItem = typeof sampleIndex === 'number' ? items[sampleIndex] : null;
+        const floatResult = await fetchInspectFloat(sampleItem, items[0]?.steamDtApiKey);
         if (typeof floatResult?.value !== 'number') continue;
         const floatValue = floatResult.value;
         const floatValue16 = formatFloat16(floatValue);
@@ -416,6 +484,7 @@
       cooldown,
       tradableAfter,
       inspectLink: readInspectLink(asset, description, steamId, asset.assetid),
+      steamId,
       eligibleForTradeup: !isSouvenir,
       isSouvenir,
       isStatTrak,
@@ -484,7 +553,7 @@
   async function exportInventory(options = {}) {
     const { steamId, inventoryData } = await fetchInventoryPagesWithFallback();
     const payload = await buildExportPayload(steamId, inventoryData, options);
-    payload.items = payload.items.map(({ steamDtApiKey, ...item }) => item);
+    payload.items = payload.items.map(({ steamDtApiKey, steamId, ...item }) => item);
     downloadAsJs(payload);
     return payload;
   }
