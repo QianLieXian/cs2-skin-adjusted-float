@@ -70,6 +70,33 @@
     }
   }
 
+  function parseSteamIdFromText(text) {
+    const body = String(text || '');
+    const patterns = [
+      /<steamID64>(\d{17})<\/steamID64>/i,
+      /g_steamID\s*=\s*"(\d{17})"/i,
+      /"steamid"\s*:\s*"(\d{17})"/i,
+      /steamid["'\s:=]+(\d{17})/i
+    ];
+    for (const pattern of patterns) {
+      const match = body.match(pattern);
+      if (match?.[1]) return match[1];
+    }
+    return null;
+  }
+
+  async function resolveVanityToSteamIdByProfile(vanityId) {
+    try {
+      const response = await fetch(`https://steamcommunity.com/id/${encodeURIComponent(vanityId)}/?l=english`, {
+        credentials: 'include'
+      });
+      if (!response.ok) return null;
+      return parseSteamIdFromText(await response.text());
+    } catch (_) {
+      return null;
+    }
+  }
+
   async function collectSteamIdCandidates() {
     const fromUrl = readProfileIdFromUrl();
     const fromPage = readSteamIdFromPage();
@@ -77,10 +104,27 @@
     if (fromUrl?.type === 'steamid64') {
       candidates.push(fromUrl.value);
     } else if (fromUrl?.type === 'vanity') {
-      const resolved = await resolveVanityToSteamId(fromUrl.value);
+      const resolved = await resolveVanityToSteamId(fromUrl.value) || await resolveVanityToSteamIdByProfile(fromUrl.value);
       if (resolved) candidates.push(resolved);
     }
     return Array.from(new Set(candidates.filter(Boolean)));
+  }
+
+  async function fetchLegacyInventoryByVanity(vanityId) {
+    const legacyUrl = new URL(`https://steamcommunity.com/id/${encodeURIComponent(vanityId)}/inventory/json/${APP_ID}/${CONTEXT_ID}`);
+    legacyUrl.searchParams.set('l', 'schinese');
+    legacyUrl.searchParams.set('count', '5000');
+    const response = await fetch(legacyUrl.toString(), { credentials: 'include' });
+    if (!response.ok) throw new Error(`库存接口异常: ${response.status}`);
+    const payload = await response.json();
+    const assets = Object.values(payload?.rgInventory ?? {}).map((asset) => ({
+      appid: APP_ID,
+      assetid: asset?.id ?? '',
+      classid: asset?.classid ?? '',
+      instanceid: asset?.instanceid ?? '0'
+    }));
+    const descriptions = Object.values(payload?.rgDescriptions ?? {});
+    return { assets, descriptions };
   }
 
   function buildInventoryUrl(steamId, startAssetId) {
@@ -122,6 +166,16 @@
       } catch (error) {
         lastError = error;
         if (!/(400|404)/.test(String(error?.message || ''))) throw error;
+      }
+    }
+
+    const fromUrl = readProfileIdFromUrl();
+    if (fromUrl?.type === 'vanity') {
+      try {
+        const inventoryData = await fetchLegacyInventoryByVanity(fromUrl.value);
+        return { steamId: readSteamIdFromPage() || fromUrl.value, inventoryData };
+      } catch (error) {
+        lastError = error;
       }
     }
 
