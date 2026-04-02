@@ -1,5 +1,40 @@
 # 修复检查日志（2026-04-01）
 
+## 2026-04-02（再修：CSFloat 被 Valve 新限流拦截时，float 全缺失兜底）
+
+### 问题现象
+- 你反馈统计出现：`总数 58 / 精确 float 0 / 估算 float 0 / float 缺失 58`。
+- 日志里库存接口返回 200，但 float 全部缺失，说明“库存读取成功，inspect 浮点补全失败”。
+
+### 根因判断
+1. **Inspect 远端接口被限流/封禁**
+   - `api.csgofloat.com/bulk` 在机器人流量下会返回类似：
+     - `429` + `code: 16`
+     - `Bots are temporarily not allowed on CSGOFloat Inspect API due to new rate limits imposed by Valve`
+   - 这种情况下继续重试只会增加耗时，不会恢复 float。
+2. **原逻辑没有“被封锁态”记忆**
+   - 每次库存读取仍会重复打远端 inspect，导致慢且最终全缺失。
+3. **缺少“可控退化”**
+   - 远端不可用时没有启用外观区间估算作为兜底，因此直接变成 `missing = total`。
+
+### 本轮修复
+1. **新增 Inspect API 封锁检测与运行期记忆**
+   - 新增 `inspectApiRuntime.blocked/reason`。
+   - 一旦识别到 `429 + code=16` 或限流特征，后续请求进程内直接跳过远端 inspect，避免无意义重试。
+
+2. **新增“外观标签估算 float”兜底**
+   - 从库存 `tags` 提取 Exterior（崭新出厂/略有磨损/久经沙场/破损不堪/战痕累累）。
+   - 使用 `collection_skins.json` 中每个皮肤真实 `minFloat/maxFloat` 与外观区间求交集取中位值，标记为 `estimated_from_exterior`。
+   - 这样远端被封时不会再出现“全量缺失”，而是“精确值 + 可解释估算值”。
+
+3. **接口可观测性增强**
+   - 返回中新增 `inspectApiBlocked`。
+   - `note` 自动追加封锁原因与当前降级策略，方便你后续第一时间识别“是上游限流不是本地逻辑崩了”。
+
+### 结果
+- 当 CSFloat inspect 被 Valve 新规则限流时，系统会快速降级，不再把请求拖到 60~80 秒还全缺失。
+- 库存统计将优先展示精确值，剩余缺失项尽可能用外观估算兜底，避免再出现 `float 缺失 = 总数` 的体验。
+
 ## 2026-04-02（再修：入口层 `%` 清洗污染 inspect 原文，导致 float 解析链路集体失效）
 
 ### 问题现象
