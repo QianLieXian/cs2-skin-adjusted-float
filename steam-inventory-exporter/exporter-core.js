@@ -185,15 +185,23 @@
     return exteriorTag?.name || null;
   }
 
-  function normalizeInspectLink(rawLink, ownerSteamId, assetId) {
+  function normalizeInspectLink(rawLink, ownerSteamId, assetId, inspectD = '') {
     const link = String(rawLink || '').trim();
     if (!link) return null;
-    return link
+    const normalized = link
       .replace(/&amp;/g, '&')
       .replace(/%owner_steamid%/g, ownerSteamId)
       .replace(/%assetid%/g, assetId)
+      .replace(/%d%/gi, inspectD)
+      .replace(/%D%/g, inspectD)
+      .replace(/%propid:6%/gi, inspectD)
       .replace(/%25owner_steamid%25/gi, ownerSteamId)
-      .replace(/%25assetid%25/gi, assetId);
+      .replace(/%25assetid%25/gi, assetId)
+      .replace(/%25d%25/gi, inspectD)
+      .replace(/%25D%25/g, inspectD)
+      .replace(/%25propid:6%25/gi, inspectD);
+    if (/%(?:owner_steamid|assetid|propid:6|d)%/i.test(normalized)) return null;
+    return normalized;
   }
 
   function isInspectAction(action) {
@@ -206,13 +214,29 @@
     );
   }
 
-  function readInspectLink(description, ownerSteamId, assetId) {
-    const actionGroups = [description?.owner_actions, description?.actions, description?.market_actions];
+  function extractInspectDFromActions(actionGroups) {
+    for (const group of actionGroups) {
+      if (!Array.isArray(group)) continue;
+      for (const action of group) {
+        const link = String(action?.link || '');
+        if (!link) continue;
+        const dMatch = link.match(/[?&]d=([^&]+)/i) || link.match(/(?:^|[\s%])D(\d{6,})/);
+        if (dMatch?.[1]) return dMatch[1];
+      }
+    }
+    return '';
+  }
+
+  function readInspectLink(asset, description, ownerSteamId, assetId) {
+    const assetActionGroups = [asset?.owner_actions, asset?.actions, asset?.market_actions];
+    const descriptionActionGroups = [description?.owner_actions, description?.actions, description?.market_actions];
+    const inspectD = extractInspectDFromActions([...assetActionGroups, ...descriptionActionGroups]);
+    const actionGroups = [...assetActionGroups, ...descriptionActionGroups];
     for (const group of actionGroups) {
       if (!Array.isArray(group)) continue;
       const inspectAction = group.find((action) => isInspectAction(action));
       if (!inspectAction) continue;
-      const normalized = normalizeInspectLink(inspectAction.link, ownerSteamId, assetId);
+      const normalized = normalizeInspectLink(inspectAction.link, ownerSteamId, assetId, inspectD);
       if (normalized) return normalized;
     }
     return null;
@@ -263,6 +287,10 @@
 
   function parseFloatFromSteamDtResponse(payload) {
     const candidates = [
+      payload?.data?.blockDTO?.paintwear,
+      payload?.data?.blockDTO?.floatWear,
+      payload?.data?.blockDto?.paintwear,
+      payload?.data?.blockDto?.floatWear,
       payload?.data?.itemPreviewData?.paintwear,
       payload?.data?.itemPreviewData?.floatWear,
       payload?.data?.paintwear,
@@ -308,7 +336,7 @@
         if (response.ok) {
           const payload = await response.json();
           const parsed = parseFloatFromSteamDtResponse(payload);
-          if (typeof parsed === 'number') return parsed;
+          if (typeof parsed === 'number') return { value: parsed, source: 'steamdt_inspect' };
         }
       } catch (_) {
         // ignore and fallback to CSFloat candidates
@@ -323,7 +351,7 @@
         if (!response.ok) continue;
         const payload = await response.json();
         const parsed = parseFloatFromInspectResponse(payload);
-        if (typeof parsed === 'number') return parsed;
+        if (typeof parsed === 'number') return { value: parsed, source: 'csfloat_inspect' };
       } catch (_) {
         // continue to next inspect api candidate
       }
@@ -352,15 +380,16 @@
         const currentIndex = cursor;
         cursor += 1;
         const link = links[currentIndex];
-        const floatValue = await fetchInspectFloat(link, items[0]?.steamDtApiKey);
-        if (typeof floatValue !== 'number') continue;
+        const floatResult = await fetchInspectFloat(link, items[0]?.steamDtApiKey);
+        if (typeof floatResult?.value !== 'number') continue;
+        const floatValue = floatResult.value;
         const floatValue16 = formatFloat16(floatValue);
         for (const itemIndex of groupedByInspect.get(link) || []) {
           items[itemIndex] = {
             ...items[itemIndex],
             floatValue,
             floatValue16,
-            floatSource: 'csfloat_inspect'
+            floatSource: floatResult.source
           };
         }
       }
@@ -392,7 +421,7 @@
       exterior,
       cooldown,
       tradableAfter,
-      inspectLink: readInspectLink(description, steamId, asset.assetid),
+      inspectLink: readInspectLink(asset, description, steamId, asset.assetid),
       eligibleForTradeup: !isSouvenir,
       isSouvenir,
       isStatTrak,
