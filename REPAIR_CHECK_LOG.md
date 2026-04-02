@@ -1,5 +1,40 @@
 # 修复检查日志（2026-04-01）
 
+## 2026-04-02（再修：入口层 `%` 清洗污染 inspect 原文，导致 float 解析链路集体失效）
+
+### 问题现象
+- 你反馈库存统计持续出现：`精确 float = 0`、`float 缺失 = 全量`。
+- 即使已经接入 inspect 解码与多端点回退，仍会出现“全缺失回归”。
+
+### 根因判断
+1. **inspect 入口归一化过度**
+   - `normalizeInspectLink` 在入库时会全局执行 `%(?![0-9a-fA-F]{2}) -> %25`。
+   - 这一步会污染部分 CS2 新版自编码 inspect 链接的原始 payload，使后续“本地解码 / 参数解析 / URL 查询”都命中失败。
+2. **单形态重试不足**
+   - `resolveFloatFromInspectLink` 仅对“单一 inspectLink 字符串”按顺序尝试。
+   - 当输入恰好是“已污染版”或“需安全解码版”时，链路缺少并行候选，容易整批缺失。
+
+### 本轮修复
+1. **停止在入口层污染 inspect 链接**
+   - `normalizeInspectLink` 现在只做：
+     - `&amp;` 还原
+     - `%owner_steamid% / %assetid%` 占位符替换
+   - 不再全局替换 `%`，保留 inspect 原始语义。
+
+2. **新增 inspect 多候选解析机制**
+   - 新增 `buildInspectLinkCandidates`，同一条目自动构建候选：
+     - 原始链接
+     - 安全解码链接
+     - 非法 `%` 修复版链接（仅兜底候选）
+   - `resolveFloatFromInspectLink` 会对每个候选依次执行：
+     - 本地 inspect 解码
+     - `s/m + a + d` 参数模式
+     - `?url=` 查询模式
+
+### 结果
+- 入口层不再破坏 inspect 原文，避免“修复后又回归全缺失”。
+- 单条链接的容错从“单字符串”升级为“多候选串联”，float 成功率更稳。
+
 ## 2026-04-02（再修：float 全缺失，兼容 CS2 新版自编码 inspect 链接）
 
 ### 问题现象
