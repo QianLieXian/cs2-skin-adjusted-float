@@ -16,6 +16,7 @@ const ui = {
   inventoryImportFile: document.getElementById('inventoryImportFile'),
   tradeUrlInput: document.getElementById('tradeUrlInput'),
   steamApiKeyInput: document.getElementById('steamApiKeyInput'),
+  steamDtApiKeyInput: document.getElementById('steamDtApiKeyInput'),
   steamIdInput: document.getElementById('steamIdInput'),
   calculateBtn: document.getElementById('calculateBtn'),
   targetFloat: document.getElementById('targetFloat'),
@@ -34,6 +35,7 @@ let skinData = null;
 let inventoryItems = [];
 let skinsByName = new Map();
 const API_KEY_STORAGE_KEY = 'steam_web_api_key';
+const STEAMDT_KEY_STORAGE_KEY = 'steamdt_api_key';
 const STEAM_ID_STORAGE_KEY = 'steam_id_64';
 const IMPORT_FILE_MAX_BYTES = 8 * 1024 * 1024;
 
@@ -122,6 +124,9 @@ const API_FETCH_OPTIONS = { credentials: 'include', cache: 'no-store' };
 
 function getSteamApiKey() {
   return sanitizeApiKey(ui.steamApiKeyInput?.value);
+}
+function getSteamDtApiKey() {
+  return sanitizeApiKey(ui.steamDtApiKeyInput?.value);
 }
 
 function getSteamId64() {
@@ -399,7 +404,9 @@ async function loadAuthedInventory(user) {
   ui.authStatus.textContent = `已登录 Steam: ${displayName} (${steamId})\n正在刷新库存...`;
   const query = new URLSearchParams();
   const apiKey = getSteamApiKey();
+  const steamDtApiKey = getSteamDtApiKey();
   if (apiKey) query.set('apiKey', apiKey);
+  if (steamDtApiKey) query.set('steamDtApiKey', steamDtApiKey);
   const inventoryUrl = query.size > 0 ? `${API.inventory}?${query.toString()}` : API.inventory;
   const invRes = await fetch(inventoryUrl, API_FETCH_OPTIONS);
   const invResp = await invRes.json();
@@ -427,7 +434,7 @@ function renderInventoryMeta(meta) {
   const total = Number(meta.total ?? inventoryItems.length);
   const materialCount = Number(meta.materialCount ?? inventoryItems.filter((it) => it.eligibleForTradeup !== false).length);
   const missingFloatCount = Number(meta.missingFloatCount ?? inventoryItems.filter((it) => typeof it.floatValue !== 'number').length);
-  const exactFloatCount = Number(meta.exactFloatCount ?? inventoryItems.filter((it) => ['api', 'csfloat_inspect'].includes(it.floatSource)).length);
+  const exactFloatCount = Number(meta.exactFloatCount ?? inventoryItems.filter((it) => ['api', 'csfloat_inspect', 'steamdt_inspect'].includes(it.floatSource)).length);
   const estimatedFloatCount = Number(meta.estimatedFloatCount ?? inventoryItems.filter((it) => it.floatSource === 'estimated_from_exterior').length);
   const dictionaryMatchedCount = Number(meta.dictionaryMatchedCount ?? inventoryItems.filter((it) => it.collection && it.rarity).length);
   const listHtml = inventoryItems.slice(0, 40).map((it) => {
@@ -540,7 +547,7 @@ async function importInventoryFromFile() {
       cooldownCount: normalized.filter((it) => it.cooldown).length,
       materialCount: normalized.filter((it) => it.eligibleForTradeup !== false).length,
       missingFloatCount: normalized.filter((it) => typeof it.floatValue !== 'number').length,
-      exactFloatCount: normalized.filter((it) => ['inspect_link', 'api', 'imported', 'csfloat_inspect'].includes(it.floatSource)).length,
+      exactFloatCount: normalized.filter((it) => ['inspect_link', 'api', 'imported', 'csfloat_inspect', 'steamdt_inspect'].includes(it.floatSource)).length,
       estimatedFloatCount: normalized.filter((it) => it.floatSource === 'estimated_from_exterior').length,
       dictionaryMatchedCount: normalized.filter((it) => it.collection && it.rarity).length
     };
@@ -565,6 +572,8 @@ async function loadByApiKeyDirect() {
   ui.authStatus.textContent = `正在通过 API Key 读取库存... (${steamId})`;
   try {
     const query = new URLSearchParams({ apiKey, steamId });
+    const steamDtApiKey = getSteamDtApiKey();
+    if (steamDtApiKey) query.set('steamDtApiKey', steamDtApiKey);
     const resp = await fetch(`/api/inventory/by-api-key?${query.toString()}`, API_FETCH_OPTIONS);
     const data = await resp.json();
     if (!resp.ok) throw new Error(data?.details || data?.error || '读取失败');
@@ -586,7 +595,9 @@ async function loadByTradeUrl() {
   try {
     const query = new URLSearchParams({ tradeUrl });
     const apiKey = getSteamApiKey();
+    const steamDtApiKey = getSteamDtApiKey();
     if (apiKey) query.set('apiKey', apiKey);
+    if (steamDtApiKey) query.set('steamDtApiKey', steamDtApiKey);
     const resp = await fetch(`${API.publicInventory}?${query.toString()}`, API_FETCH_OPTIONS);
     const data = await resp.json();
     if (!resp.ok) throw new Error(data?.details || data?.error || '读取失败');
@@ -639,6 +650,8 @@ async function exportServerLogs() {
 function initApiKeyInput() {
   const saved = window.localStorage.getItem(API_KEY_STORAGE_KEY);
   if (saved) ui.steamApiKeyInput.value = saved;
+  const savedSteamDt = window.localStorage.getItem(STEAMDT_KEY_STORAGE_KEY);
+  if (savedSteamDt) ui.steamDtApiKeyInput.value = savedSteamDt;
   const savedSteamId = window.localStorage.getItem(STEAM_ID_STORAGE_KEY);
   if (savedSteamId) ui.steamIdInput.value = savedSteamId;
   ui.steamApiKeyInput.addEventListener('change', () => {
@@ -647,6 +660,14 @@ function initApiKeyInput() {
       window.localStorage.setItem(API_KEY_STORAGE_KEY, value);
     } else {
       window.localStorage.removeItem(API_KEY_STORAGE_KEY);
+    }
+  });
+  ui.steamDtApiKeyInput.addEventListener('change', () => {
+    const value = getSteamDtApiKey();
+    if (value) {
+      window.localStorage.setItem(STEAMDT_KEY_STORAGE_KEY, value);
+    } else {
+      window.localStorage.removeItem(STEAMDT_KEY_STORAGE_KEY);
     }
   });
   ui.steamIdInput.addEventListener('change', () => {

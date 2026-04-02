@@ -1,5 +1,29 @@
 # 修复检查日志（2026-04-01）
 
+## 2026-04-02（新增：插件与网页接入 SteamDT，支持用户填写 Steam Web API Key + SteamDT API Key）
+
+### 需求背景
+- 你反馈导出链路中磨损值仍大量为 `null`，且 7 天冷却物品识别与 float 精确补全都不稳定，要求直接对接 SteamDT。
+
+### 本轮改动
+1. **导出插件/油猴接入 SteamDT**
+   - 导出时可填写并保存 `Steam Web API Key` 与 `SteamDT API Key`（浏览器本地存储）。
+   - float 补全顺序改为：`SteamDT -> CSFloat -> missing`。
+   - 导出元数据新增 `exporterSettings`，可确认两类 key 是否已配置。
+
+2. **网页前端新增 SteamDT Key 输入**
+   - 在库存授权区新增 `SteamDT API Key` 输入框，和 Steam Web API Key 一样写入 `localStorage`。
+   - 登录读取 / API Key 直连 / 交易链接读取 三条链路统一透传 `steamDtApiKey` 到后端。
+
+3. **后端接入 SteamDT inspect**
+   - 支持从 query/header/env 读取 SteamDT Key（`steamDtApiKey` / `x-steamdt-api-key` / `STEAMDT_API_KEY`）。
+   - 新增 SteamDT wear 查询（`POST /open/cs2/v1/wear`，`Authorization: Bearer <key>`）并解析 `paintwear/floatWear`。
+   - 精确 float 统计新增 `steamdt_inspect` 来源。
+
+### 结果
+- 现在你可以在插件和网页都直接填 key，优先走 SteamDT 拿 16 位磨损，失败再回退 CSFloat。
+- 冷却识别仍沿用 Steam 库存描述字段，不依赖 inspect 服务。
+
 ## 2026-04-02（再修：导出端 inspectLink 漏抓导致 float 全缺失，补齐 16 位精确磨损链路）
 
 ### 问题现象

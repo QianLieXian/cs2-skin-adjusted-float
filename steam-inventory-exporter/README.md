@@ -14,8 +14,11 @@
 - `inspectLink`（用于后续更精确磨损补全）；
 - float：
   - 优先使用库存响应里已有的 float（`inventory_api`）；
-  - 若缺失，则自动用 `inspectLink` 请求 CSFloat 接口补全（`csfloat_inspect`）；
+  - 若缺失，则优先用 `inspectLink` 请求 SteamDT 接口补全（`steamdt_inspect`）；
+  - SteamDT 未配置或失败时，自动回退请求 CSFloat 接口补全（`csfloat_inspect`）；
   - 仍失败则标记为 `missing`（不再做任何估算）。
+
+> 导出按钮点击后可填写并保存 `Steam Web API Key` 与 `SteamDT API Key`（均保存在当前浏览器 localStorage，仅用于你自己页面上的导出请求）。
 
 导出文件为 `window.CS2_INVENTORY_EXPORT = {...};` 格式，可直接导入本项目前端。
 
